@@ -33,6 +33,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import "./style.css";
+import { Automations, SystemPanel } from "./ExtensionPanels";
 
 type Settings = {
   assistant_name: string;
@@ -42,17 +43,31 @@ type Settings = {
   temperature: number;
   num_ctx: number;
   memory_enabled: boolean;
+  auto_memory: boolean;
+  auto_update: boolean;
+  description: string;
+  college: string;
+  course: string;
+  interests: string;
+  tone: string;
 };
 type Message = { id: number; role: string; content: string; status: string };
 type Chat = { id: string; title: string; messages?: Message[] };
-type Item = { id: string; content: string; done?: boolean };
+type Item = { id: string; content: string; done?: boolean; source?: string };
 type Status = {
   online: boolean;
   model_ready: boolean;
   models: { name: string }[];
   error?: string;
 };
-type Page = "chat" | "memories" | "notes" | "tasks" | "settings";
+type Page =
+  | "chat"
+  | "memories"
+  | "notes"
+  | "tasks"
+  | "settings"
+  | "automations"
+  | "system";
 const defaults: Settings = {
   assistant_name: "Nila",
   user_name: "",
@@ -61,6 +76,13 @@ const defaults: Settings = {
   temperature: 0.7,
   num_ctx: 2048,
   memory_enabled: true,
+  auto_memory: true,
+  auto_update: true,
+  description: "",
+  college: "",
+  course: "",
+  interests: "",
+  tone: "Friendly",
 };
 async function api<T>(
   path: string,
@@ -378,6 +400,8 @@ function App() {
     }
   }
   const nav = [
+    { id: "automations", icon: RefreshCw, label: "Automations" },
+    { id: "system", icon: Terminal, label: "System" },
     { id: "chat", icon: MessageSquare, label: "Conversations" },
     { id: "memories", icon: Brain, label: "Memory" },
     { id: "notes", icon: NotebookPen, label: "Notes" },
@@ -847,6 +871,10 @@ function App() {
               </div>
             </div>
           </>
+        ) : page === "automations" ? (
+          <Automations />
+        ) : page === "system" ? (
+          <SystemPanel />
         ) : page === "settings" ? (
           <div className="page-scroll">
             <section className="settings-page">
@@ -893,6 +921,65 @@ function App() {
                         <option>Auto</option>
                         <option>English</option>
                         <option>Malayalam</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+                <div className="panel profile-fields">
+                  <h2>Your profile</h2>
+                  <label>
+                    About you
+                    <textarea
+                      maxLength={1000}
+                      value={draft.description}
+                      onChange={(e) =>
+                        setDraft({ ...draft, description: e.target.value })
+                      }
+                      placeholder="Tell Nila a little about yourself, your goals, and how you like to learn."
+                    />
+                  </label>
+                  <div className="form-grid">
+                    <label>
+                      College
+                      <input
+                        maxLength={150}
+                        value={draft.college}
+                        onChange={(e) =>
+                          setDraft({ ...draft, college: e.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Course / role
+                      <input
+                        maxLength={150}
+                        value={draft.course}
+                        onChange={(e) =>
+                          setDraft({ ...draft, course: e.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Interests
+                      <input
+                        maxLength={500}
+                        value={draft.interests}
+                        onChange={(e) =>
+                          setDraft({ ...draft, interests: e.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Conversation style
+                      <select
+                        value={draft.tone}
+                        onChange={(e) =>
+                          setDraft({ ...draft, tone: e.target.value })
+                        }
+                      >
+                        <option>Friendly</option>
+                        <option>Professional</option>
+                        <option>Concise</option>
                       </select>
                     </label>
                   </div>
@@ -994,8 +1081,39 @@ function App() {
                     <span>
                       Include saved memory in conversations
                       <small>
-                        Only facts you explicitly save. You can edit or delete
-                        them anytime.
+                        You can inspect, edit, or delete saved facts anytime.
+                      </small>
+                    </span>
+                  </label>
+                  <label className="check-label">
+                    <input
+                      type="checkbox"
+                      checked={draft.auto_memory}
+                      onChange={(e) =>
+                        setDraft({ ...draft, auto_memory: e.target.checked })
+                      }
+                    />
+                    <span>
+                      Automatically learn useful facts
+                      <small>
+                        Local AI extracts explicit, non-sensitive facts from
+                        short personal statements. Review them in Memory.
+                      </small>
+                    </span>
+                  </label>
+                  <label className="check-label">
+                    <input
+                      type="checkbox"
+                      checked={draft.auto_update}
+                      onChange={(e) =>
+                        setDraft({ ...draft, auto_update: e.target.checked })
+                      }
+                    />
+                    <span>
+                      Automatically update from GitHub main
+                      <small>
+                        Managed Windows installations check at startup, at most
+                        once a day. Restart to use the new version.
                       </small>
                     </span>
                   </label>
@@ -1013,8 +1131,8 @@ function App() {
                     </span>
                   </label>
                   <p className="hint">
-                    Chats are stored locally, without encryption. Use your
-                    device account and disk encryption to protect them.
+                    Chats, profile, and saved content are encrypted locally.
+                    Keep your encryption key and protect your device account.
                   </p>
                 </div>
                 <button className="primary" type="submit">
@@ -1047,7 +1165,7 @@ function App() {
               </h1>
               <p>
                 {page === "memories"
-                  ? "Save useful facts for Nila to remember. Nothing is saved here automatically."
+                  ? "Review facts you saved and facts Nila learned automatically. Delete or correct anything that is wrong."
                   : page === "notes"
                     ? "Keep notes close by. Notes are not automatically sent to the model."
                     : "A simple list for what comes next. Tasks do not send reminders."}
@@ -1130,7 +1248,16 @@ function App() {
                         }}
                       />
                     )}
-                    <p>{item.content}</p>
+                    <p>
+                      {page === "memories" && (
+                        <small className="memory-source">
+                          {item.source === "automatic"
+                            ? "Learned automatically · review accuracy"
+                            : "Saved by you"}
+                        </small>
+                      )}
+                      {item.content}
+                    </p>
                     <button
                       className="icon"
                       aria-label="Edit item"

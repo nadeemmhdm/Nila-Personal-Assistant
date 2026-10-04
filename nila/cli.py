@@ -20,6 +20,23 @@ def parser():
     web = sub.add_parser("web",help="Start the local web interface")
     web.add_argument("--port",type=int,default=8765)
     web.add_argument("--no-open",action="store_true")
+    sub.add_parser("worker",help="Run offline scheduled tasks until stopped")
+    update = sub.add_parser("update",help="Check or install main-branch updates")
+    update.add_argument("--check",action="store_true")
+    update.add_argument("--auto",action="store_true",help=argparse.SUPPRESS)
+    svc=sub.add_parser("service",help="Control the Windows login worker")
+    svc.add_argument("action",choices=["start","stop","enable","disable"])
+    pull = sub.add_parser("pull",help="Download a local Ollama model")
+    pull.add_argument("model",nargs="?",default="llama3.2:1b")
+    auto = sub.add_parser("automation",help="Schedule and manage offline work")
+    auto.add_argument("action",choices=["list","add","edit","run","pause","remove","logs","draft"])
+    auto.add_argument("id",nargs="?")
+    auto.add_argument("--title",default="Local automation")
+    auto.add_argument("--prompt")
+    auto.add_argument("--kind",choices=["ai","brief","note","task"],default="ai")
+    auto.add_argument("--every",type=int,default=0,help="Repeat every N minutes (minimum 5), 0 for once")
+    auto.add_argument("--after",type=int,default=1,help="First run after N minutes")
+    auto.add_argument("--paused",action="store_true")
     sub.add_parser("doctor",help="Check Ollama, model, and storage")
     sub.add_parser("models",help="List installed Ollama models")
     model = sub.add_parser("model",help="Set the default model")
@@ -34,6 +51,16 @@ def parser():
     settings.add_argument("--name")
     settings.add_argument("--user")
     settings.add_argument("--language",choices=["Auto","English","Malayalam"])
+    settings.add_argument("--description")
+    settings.add_argument("--college")
+    settings.add_argument("--course")
+    settings.add_argument("--interests")
+    settings.add_argument("--tone",choices=["Friendly","Professional","Concise"])
+    settings.add_argument("--auto-memory",choices=["on","off"])
+    settings.add_argument("--memory",choices=["on","off"])
+    settings.add_argument("--auto-update",choices=["on","off"])
+    settings.add_argument("--temperature",type=float)
+    settings.add_argument("--context",type=int)
     for kind in ["memory","notes","tasks"]:
         item = sub.add_parser(kind,help=f"Manage {kind}")
         item.add_argument("action",nargs="?",default="list",choices=["list","add","remove","edit","done"] if kind == "tasks" else ["list","add","remove","edit"])
@@ -73,7 +100,41 @@ def main():
     args = parser().parse_args()
     store = Store()
     try:
-        if args.command == "web":
+        from .updater import start_auto_update
+        if args.command in {None,"chat","ask","web"}: start_auto_update(store)
+        if args.command == "worker":
+            from .worker import run_worker
+            asyncio.run(run_worker(store))
+        elif args.command == "service":
+            from .extensions import service
+            print(service(args.action)['message'])
+        elif args.command == "update":
+            from .updater import check,apply_update,auto_update
+            if args.auto: auto_update(store)
+            else: print(json.dumps(check() if args.check else apply_update(),indent=2))
+        elif args.command == "pull":
+            from .extensions import pull_model,ModelPull
+            model=ModelPull(model=args.model).model
+            asyncio.run(pull_model(model,lambda d:print(d.get('status',''),flush=True)))
+        elif args.command == "automation":
+            import time
+            from .automation import Job,jobs,runs,save_job,remove_job,Scheduler
+            scheduler=Scheduler(store)
+            if args.action == 'list':print(json.dumps(jobs(store),indent=2,ensure_ascii=False))
+            elif args.action == 'logs':print(json.dumps(runs(store),indent=2,ensure_ascii=False))
+            elif args.action == 'draft':
+                from .extensions import draft_job
+                if not args.prompt:raise ValueError('Provide --prompt with your automation request')
+                print(json.dumps(asyncio.run(draft_job(store,args.prompt)),indent=2,ensure_ascii=False))
+            elif args.action in {'add','edit'}:
+                if not args.prompt:raise ValueError('Provide --prompt')
+                if args.action=='edit' and not args.id:raise ValueError('Provide automation ID')
+                print(save_job(store,Job(title=args.title,prompt=args.prompt,kind=args.kind,interval_minutes=args.every,next_run=time.time()+max(0,args.after)*60,enabled=not args.paused),args.id if args.action=='edit' else None))
+            elif not args.id:raise ValueError('Provide automation ID')
+            elif args.action == 'pause':scheduler.pause(args.id)
+            elif args.action == 'remove':remove_job(store,args.id)
+            elif args.action == 'run':print(json.dumps(asyncio.run(scheduler.run(args.id,force=True)),ensure_ascii=False))
+        elif args.command == "web":
             if not 1024 <= args.port <= 65535: raise ValueError("Port must be 1024–65535")
             import uvicorn
             from .server import create_app
@@ -93,7 +154,8 @@ def main():
             asyncio.run(interactive(store,cid))
         elif args.command in {"doctor","models"}:
             if args.command == "doctor":
-                print(f"Nila {__version__}\nStorage: {store.root}\nDefault model: {store.settings()['model']}")
+                from .extensions import diagnostics
+                print(json.dumps(asyncio.run(diagnostics(store)),indent=2,ensure_ascii=False))
             installed = asyncio.run(models())
             for m in installed: print(f"{m['name']}  {m.get('size',0)/1e9:.2f} GB")
             if args.command == "doctor":
@@ -110,6 +172,13 @@ def main():
             values = store.settings()
             for key,arg in [("assistant_name",args.name),("user_name",args.user),("language",args.language)]:
                 if arg is not None: values[key]=arg
+            for key in ['description','college','course','interests','tone','temperature']:
+                arg=getattr(args,key)
+                if arg is not None:values[key]=arg
+            if args.context is not None:values['num_ctx']=args.context
+            for arg,key in [('auto_memory','auto_memory'),('memory','memory_enabled'),('auto_update','auto_update')]:
+                value=getattr(args,arg)
+                if value is not None:values[key]=value=='on'
             print(json.dumps(store.save_settings(Settings(**values).model_dump()),indent=2,ensure_ascii=False))
         elif args.command == "history":
             for c in store.chats(): print(c["id"],c["title"])

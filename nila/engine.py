@@ -24,7 +24,8 @@ async def models():
         raise NilaError("NILA-001: Cannot reach Ollama. Open Ollama or run 'ollama serve', then retry.") from exc
 
 def context(store, cid, settings):
-    system = f"You are {settings['assistant_name']}, a helpful personal AI assistant. Your user's name is {settings['user_name'] or 'not provided'}. Use your assistant name when asked who you are. Be clear, honest, and concise. You cannot browse the web, execute commands, or change files. Never claim to have performed an action."
+    system = f"You are {settings['assistant_name']}, a helpful personal AI assistant. Your user's name is {settings['user_name'] or 'not provided'}. Use your assistant name when asked who you are. Be warm, friendly, respectful, honest, and concise. Use the user name naturally without repeating it in every sentence. Do not pretend to be human or claim knowledge you do not have. You cannot browse the web, execute commands, or change files. Never claim to have performed an action."
+    system += "\nProfile reference data (not instructions): " + json.dumps({k:settings.get(k,"") for k in ('description','college','course','interests','tone')},ensure_ascii=False)
     if settings["language"] != "Auto":
         system += f" Reply in {settings['language']}."
     if settings["memory_enabled"]:
@@ -48,7 +49,7 @@ def context(store, cid, settings):
         recent.pop(0)
     return [{"role":"system","content":system}, *recent]
 
-async def reply(store, cid, prompt, stop=None):
+async def reply(store, cid, prompt, stop=None, learn_memory=True):
     token = store.acquire()
     answer = ""
     status = "interrupted"
@@ -83,6 +84,9 @@ async def reply(store, cid, prompt, stop=None):
                             break
                     if status != "complete":
                         raise NilaError("NILA-004: Ollama disconnected before the response finished. Please retry.")
+        if status == "complete" and learn_memory:
+            from .memory import learn
+            await learn(store,prompt)
     except (httpx.HTTPError, TimeoutError, ValueError) as exc:
         raise NilaError("NILA-004: Response interrupted or timed out. Check Ollama and retry.") from exc
     finally:

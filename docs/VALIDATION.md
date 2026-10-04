@@ -1,25 +1,28 @@
-# Validation — v0.1.0
+# Validation — v0.2.0
 
 Validated in the Linux build environment on 2026-10-04.
 
 | Check | Result |
 | --- | --- |
-| Python test suite | 11 passed |
-| TypeScript type check and Vite production build | Passed |
-| Desktop Chromium render (1440 × 950) | Passed; screenshot inspected |
-| Mobile Chromium render (390 × 844) | Passed; screenshot inspected; no horizontal overflow |
-| Browser preferences save | Passed |
-| Browser memory and notes creation | Passed |
-| Browser task completion | Passed |
-| Browser mobile menu and light/dark theme | Passed |
-| Ollama unavailable error and prompt restoration | Passed |
-| Streaming through actual local HTTP connections | Passed with a simulated Ollama service |
-| Stop during generation, partial-response persistence, and next request | Passed with a simulated Ollama service |
+| Python regression suite | 21 passed |
+| TypeScript check and Vite production build | Passed |
+| Profile saving in Chromium | Passed: name, college, course and description |
+| Automation creation and immediate run in Chromium | Passed with a real local scheduler and deterministic note action |
+| Automation history and shared Notes result | Passed |
+| System diagnostics and encryption status | Passed |
+| Mobile navigation and layout at 390 × 844 | Passed; no horizontal overflow |
+| Chromium runtime errors during exercised flows | None |
 | Linux standalone binary build | Passed |
-| Linux binary `--version`, Web UI, and settings endpoint | Passed |
-| Windows binary build | Workflow supplied; not run in this Linux environment |
-| Actual llama3.2:1b inference and Malayalam quality | Not tested; no Ollama model installed here |
+| Packaged binary Web UI, settings and System API | Passed |
+| Packaged binary encrypted storage and scheduled note | Passed |
+| Windows script parsing | Added to Windows CI; not executed locally |
+| Windows prerequisite installation / PATH / login task | Implemented; requires end-to-end testing on Windows |
+| Windows DPAPI key protection | Implemented; requires Windows test runner |
+| Real llama3.2:1b inference, extraction quality and speed | Not tested locally; model unavailable in this environment |
+| Live main-branch update installation | Not executed locally; managed updater targets Windows |
 
-Automated tests cover persistent history, cascading chat deletion, settings validation, memory CRUD, host/origin checks, shared generation locking, memory exclusion, streaming, missing model handling, broken streams, cancellation, local endpoint restrictions, and CLI/Web storage sharing.
+Regression tests cover encrypted persistence and plaintext migration, wrong-key failure, explicit memory controls, evidence validation, sensitive-marker filtering, deduplication and forgetting, profile validation, scheduler claims, cancellation/pause state, API action allowlists, commit-based update checks, offline behavior, installer integrity rejection, streaming, origin checks and CLI/Web data sharing.
 
-A mocked model verifies integration and error handling; it does not establish real model quality, latency, RAM use, or hardware compatibility. Run `nila doctor` and a real chat on your own computer after downloading the model.
+Model-dependent tests use simulated Ollama responses. They establish protocol handling and validation behavior, not model quality. The browser automation exercised real local note execution rather than an AI-generated response. Previous v0.1.0 browser checks covered conversation interaction, offline error handling, memory, notes, tasks, mobile navigation and theme switching.
+
+Before distributing the Windows installer broadly, test a clean Windows account, an existing Ollama installation, interrupted downloads, unavailable WinGet, rollback after a build failure, and an upgrade from v0.1.0 using non-sensitive sample data.

@@ -1211,3 +1211,77 @@ input[type="checkbox"] {
   transition: none !important;
   scroll-behavior: auto !important;
 }
+.panel textarea {
+  display: block;
+  width: 100%;
+  min-height: 90px;
+  margin: 10px 0 16px;
+  background: var(--input);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 12px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.7;
+}
+.panel .primary {
+  margin-top: 14px;
+}
+.job-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  font-size: 12px;
+}
+.job-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.job-actions button,
+.text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.section-label {
+  font-size: 16px;
+  font-weight: 500;
+  margin-top: 32px;
+}
+.run-output {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px/1.8 inherit;
+}
+.panel summary {
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.system-grid {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 12px;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.system-grid dt {
+  color: var(--muted);
+}
+.system-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.memory-source {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  margin-bottom: 5px;
+}
+.profile-fields {
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}

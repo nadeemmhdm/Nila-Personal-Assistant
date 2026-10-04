@@ -1,7 +1,7 @@
 import asyncio
 import json
 import re
-from contextlib import suppress
+from contextlib import suppress, asynccontextmanager
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
@@ -21,6 +21,13 @@ class Settings(BaseModel):
     temperature: float = Field(default=0.7,ge=0,le=1.5)
     num_ctx: Literal[2048,4096,8192] = 2048
     memory_enabled: bool = True
+    auto_memory: bool = True
+    auto_update: bool = True
+    description: str = Field(default="", max_length=1000)
+    college: str = Field(default="", max_length=150)
+    course: str = Field(default="", max_length=150)
+    interests: str = Field(default="", max_length=500)
+    tone: Literal["Friendly","Professional","Concise"] = "Friendly"
     @field_validator("assistant_name", "user_name")
     @classmethod
     def clean_name(cls, v):
@@ -49,8 +56,21 @@ Kind = Literal["memories","notes","tasks"]
 
 def create_app(store=None):
     store = store or Store()
-    app = FastAPI(title="Nila Personal Assistant",version=__version__,docs_url=None,redoc_url=None)
+    from .automation import Scheduler
+    from .extensions import register
+    from .updater import start_auto_update
+    scheduler = Scheduler(store)
+    @asynccontextmanager
+    async def lifespan(app):
+        worker = asyncio.create_task(scheduler.loop())
+        start_auto_update(store)
+        try: yield
+        finally:
+            worker.cancel()
+            with suppress(asyncio.CancelledError): await worker
+    app = FastAPI(lifespan=lifespan,title="Nila Personal Assistant",version=__version__,docs_url=None,redoc_url=None)
     running = {}
+    register(app,store,scheduler)
 
     @app.middleware("http")
     async def local_only(request, call_next):

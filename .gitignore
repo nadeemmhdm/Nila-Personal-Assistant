@@ -13,3 +13,9 @@ dist/
 .env
 nila/static/
 binaries/
+vault.key
+vault-key.lock
+worker.lock
+worker-status.json
+worker-status.pending
+*.log

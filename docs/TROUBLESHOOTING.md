@@ -1,30 +1,38 @@
 # Troubleshooting
 
-| Code | Meaning | Fix |
+Start with **System → Run diagnostics** or `nila doctor`.
+
+| Symptom/code | Meaning | Next step |
 | --- | --- | --- |
-| NILA-001 | Ollama is unreachable | Open Ollama or run `ollama serve`. Run `nila doctor`. |
-| NILA-002 | Selected model is missing | Run `ollama pull llama3.2:1b`, or pull the model shown in the error. |
-| NILA-003 | Another generation is active | Stop it in the Web UI or wait. After a crash, the lock expires within 11 minutes. |
-| NILA-004 | Generation failed, disconnected, or timed out | Check Ollama, RAM, and model availability. Retry with a shorter prompt or 2,048 context. |
-| NILA-005 | Non-local Ollama URL | Unset `NILA_OLLAMA_URL` or use `http://127.0.0.1:11434`. |
-| NILA-006 | Internal server error | Restart Nila, run `nila doctor`, and report reproducible steps without private chat data. |
+| NILA-001 | Ollama unavailable | Open Ollama or run `ollama serve`. |
+| NILA-002 | Selected model missing | Run `nila pull llama3.2:1b` or use System → Model download. |
+| NILA-003 | Another generation is active | Stop/wait for it. A crash-held lease expires within 12 minutes. |
+| NILA-004 | Generation interrupted or timed out | Check RAM/Ollama; try a shorter prompt or 2,048 context. |
+| NILA-005 | Non-local Ollama URL | Unset `NILA_OLLAMA_URL` or use a loopback HTTP address. |
+| NILA-006 | Internal error | Restart and reproduce with non-private test data. |
+| NILA-010 | Encryption key unavailable/invalid | Restore the original `vault.key`; do not delete/reset the database. |
+| NILA-020 | Installer/pointer integrity problem | Retry the official installer; retain your data directory. |
+| `nila` not recognized | New PATH not loaded | Open a new terminal; check `%LOCALAPPDATA%\NilaApp\bin`. |
+| WinGet unavailable | App Installer missing | Install/update Microsoft App Installer from Microsoft Store. |
+| Prerequisite install fails | WinGet, permissions or network issue | Complete Windows permission prompts, check internet, then rerun. |
+| Automation did not run | PC asleep, job paused, or no worker/server | Check schedule, run `nila service start` or `nila worker`; keep PC awake. |
+| Memory not learned | Conservative extraction skipped it | Use a short first-person statement or add the fact manually. |
+| Update unavailable | Offline/API limit or unsupported install | Retry later; use manual rebuild for Linux/source installs. |
 
-## Browser shows “Build the web interface”
+## Windows setup and updates
 
-In the project folder: `cd web`, `npm ci`, `npm run build`. Restart `nila web`.
+Rerun the one-line installer to recover a partial setup; it checks existing prerequisites/model before downloading them again. Application binaries live under `%LOCALAPPDATA%\NilaApp\versions`, while personal data normally lives under `%LOCALAPPDATA%\Nila`.
 
-## `nila` is not recognized
+An update activates on the next launch. Close the Web/CLI process and reopen it; stop/start the login worker to move it to the new version. A failed staged build leaves the active binary intact. Check `last-update.log` or `auto-update-launch.log` in NilaApp. The `previous.txt` pointer retains the previous active commit for manual recovery; preserve it until a new version has been exercised.
 
-Use `.venv\Scripts\nila.exe` on Windows or activate the virtual environment. For a packaged binary, add its folder to PATH. Use `python -m nila` as an alternative.
+## Encryption and backups
 
-## Port already used
+Stop Nila and its worker before backing up the entire data folder. Keep `vault.key` with `nila.db`; the database alone is insufficient. Windows DPAPI keys are account-bound. Existing external plaintext backups from v0.1.0 are not encrypted by the upgrade.
 
-Stop the other instance or use `nila web --port 8766`. Vite development still expects backend port 8765 unless you edit its proxy configuration.
+## Offline and scheduling behavior
 
-## 8 GB RAM laptop
+Chat, saved content and installed-model jobs work offline. Downloading a model, installing requirements or checking/building updates requires internet. Scheduled repeats use elapsed minutes. Missed intervals are collapsed to one run when a scheduler returns. Notes/to-dos created by automation are not native desktop notification reminders.
 
-Start with `llama3.2:1b`, 2,048 context, and one request at a time. Close memory-heavy applications. Speed depends on CPU and Ollama's hardware configuration; no tokens-per-second guarantee is made.
+## Source development
 
-## Offline use
-
-Initial dependency/model downloads require internet. Once installed, local chats, memory, notes, and tasks do not require internet. These features do not provide current web information.
+If `/` reports that the interface is missing, run `npm ci` and `npm run build` in `web/`, then restart. If port 8765 is occupied, stop the other server or use `nila web --port 8766`; Vite's development proxy targets 8765 by default.
