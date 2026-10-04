@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+web/node_modules/
+node_modules/
+build/
+dist/
+*.spec
+*.db
+*.db-*
+.env
+nila/static/
+binaries/
