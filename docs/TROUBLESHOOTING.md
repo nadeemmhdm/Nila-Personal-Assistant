@@ -36,3 +36,14 @@ Chat, saved content and installed-model jobs work offline. Downloading a model, 
 ## Source development
 
 If `/` reports that the interface is missing, run `npm ci` and `npm run build` in `web/`, then restart. If port 8765 is occupied, stop the other server or use `nila web --port 8766`; Vite's development proxy targets 8765 by default.
+
+## Learning Lab
+
+- **No Gemini models:** save a valid key, then load models. This action needs internet. Account restrictions may hide or deny models.
+- **Quota/rate limit:** the session stops without automatic retries. Check your AI Studio quota and choose an available model or retry later. Nila does not upgrade billing automatically.
+- **Invalid or blocked review:** no lesson is saved for that review. Try a different supported Gemini model or a clearer topic.
+- **Local model unavailable:** download it in System or with `nila pull MODEL`. Learning Lab needs a local text-chat model; embedding-only and cloud-tagged local-model selections are unsuitable.
+- **Another request is running:** Learning Lab reserves local generation. Stop the lab or wait before starting ordinary chat/AI jobs.
+- **No learned improvement:** only acceptable reviewed lessons are saved; matching uses topic/content keywords. Check Learning Lab → Learned knowledge and the Preferences knowledge switch. This is retrieved context, not model-weight training.
+- **How to stop:** use Stop session, `nila learn --stop ID`, or Ctrl+C in the terminal running the session. Closing a browser tab alone does not stop the server-hosted session.
+- **CLI feels complicated:** run `nila` once, then type normal messages. `/model` switches models; `/learn` opens the guided discussion wizard.

@@ -1285,3 +1285,65 @@ input[type="checkbox"] {
   border-top: 1px solid var(--line);
   padding-top: 20px;
 }
+.lab-live {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--accent);
+  border-radius: 9px;
+  font-size: 12px;
+}
+.lab-history {
+  display: grid;
+  gap: 8px;
+}
+.lab-history > div {
+  display: flex;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.lab-history > div > button:first-child {
+  flex: 1;
+  text-align: left;
+  padding: 12px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+.lab-history small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 6px;
+}
+.lab-turn {
+  border-left: 2px solid var(--line);
+  padding: 5px 0 8px 14px;
+  margin: 20px 0;
+}
+.lab-turn.gemini {
+  border-color: #96b7eb;
+}
+.lab-turn.ollama {
+  border-color: var(--accent);
+}
+.lab-turn.question {
+  color: var(--muted);
+}
+.lab-page summary svg {
+  vertical-align: middle;
+  margin-right: 7px;
+}
+.lab-page .section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lab-page > p {
+  line-height: 1.8;
+}
+.lab-transcript .markdown {
+  font-size: 12px;
+}

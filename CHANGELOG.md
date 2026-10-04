@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — 2026-10-04
+
+- Added optional Gemini Learning Lab with visible model discussions, review/revision cycles, duration and round limits, Stop, encrypted transcripts and relevant saved knowledge.
+- Added encrypted Gemini key setup, model discovery, quota handling and explicit cloud-sharing acknowledgement.
+- Kept llama3.2:1b as a recommendation; users can choose other compatible Ollama chat models.
+- Added position-based Student/Employee profiles and removed the college question.
+- Simplified terminal chat with plain-text one-shot input, /help, /model and a guided /learn flow.
+- Added MIT license and Learning Lab security/documentation.
+
 ## 0.2.0 — 2026-10-04
 
 - Added single-command Windows setup with prerequisite detection/WinGet installation, model detection, standalone `nila.exe` build and a PATH launcher.

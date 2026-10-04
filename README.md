@@ -4,7 +4,7 @@
 
 Nila runs on Ollama, remembers useful details about you, and carries out scheduled local work. The Web UI and `nila` command share encrypted storage and the same assistant settings.
 
-**Version:** 0.2.0 · **Default model:** `llama3.2:1b` · **Platforms:** Windows and Linux
+**Version:** 0.3.0 · **Recommended default:** `llama3.2:1b` · **Platforms:** Windows and Linux
 
 ## Install on Windows — one command
 
@@ -40,7 +40,7 @@ nila web
 | Capability | Details |
 | --- | --- |
 | Personal chat | Streaming replies, stop control, Markdown/code blocks, conversation search and export |
-| Personal profile | Name, description, college, course/role, interests, language and conversation tone |
+| Personal profile | Name, description, Student/Employee/other position, role-specific details, interests, language and tone |
 | Friendly responses | Profile-aware system instructions; model quality still determines the result |
 | Automatic memory | Local AI extracts supported, explicit facts from short personal statements |
 | Memory controls | Inspect source, correct, delete, deduplicate, disable learning or disable memory use |
@@ -51,12 +51,58 @@ nila web
 | Maintenance | Diagnostics, model download/resume and commit-based update controls |
 | Interface | Animated orb, response animation, responsive navigation, themes and reduced-motion support |
 
+## Choose any compatible Ollama model
+
+`llama3.2:1b` is a lightweight recommended starting point, not a requirement. Choose an installed text-chat model in Preferences or use `/model` inside terminal chat:
+
+```powershell
+nila pull YOUR_MODEL_NAME
+nila model use YOUR_MODEL_NAME
+```
+
+Model speed, memory needs, language support and features vary. Embedding-only models cannot produce chat answers. Ollama cloud-tagged models require Ollama's own authentication and internet; only downloaded local models work offline. Learning Lab specifically uses a local text model plus the online Gemini reviewer.
+
+## Chat without repeated commands
+
+Run `nila`, then type normal messages and press Enter. You do not need `nila ask` for each message. Type `/help` for shortcuts, `/model` to select a model, `/learn` to open the guided Learning Lab, or `/exit` to leave. One-shot plain text also works: `nila Explain Python dictionaries`. Shell metacharacters may still need quoting; interactive chat avoids that issue.
+
+## Gemini Learning Lab
+
+Open **Learning Lab** in the Web UI:
+
+1. Save your Gemini API key. It is encrypted locally and never returned by the settings API.
+2. Load available Gemini models and select a reviewer available to your account.
+3. Select your Ollama model, enter a topic and optional description, and choose a time limit (for example, 15 minutes) and maximum rounds.
+4. Review the cloud-sharing notice, then start. Watch the local answer, Gemini feedback and local revisions in the transcript.
+5. Use **Stop session** anytime. Review, edit, disable or delete saved lessons below the conversation.
+
+This is **retrieval-based learning, not model-weight training or fine-tuning**. When Gemini marks a response acceptable, a short reviewed lesson can be saved and matched to related future chat questions. Gemini can also make mistakes; saved notes are labeled model-reviewed, not verified facts. No lesson is saved from an invalid/failed review. Turn off all note retrieval in Preferences or with `nila settings --knowledge off`.
+
+The lab sends the topic, description, discussion question and local model answer to Google. It does not include your personal profile, ordinary chat history, notes or personal memories. Free-tier availability and limits depend on the Gemini model/project; a key does not guarantee free usage on a billing-enabled account. Google may use unpaid-service content for product improvement, so do not put private data in the lab. See [Learning Lab details](docs/LEARNING_LAB.md).
+
+Each round makes one Gemini request, with a 12-second pause between rounds. The session stops at the time limit, round limit, a user stop or an error. Quota errors stop immediately without automatic retries. Local generation is reserved during a lab session to avoid overloading a small computer. Keep the hosting Web server or terminal running.
+
+```powershell
+nila gemini setup
+nila gemini models
+nila learn
+# Or provide the topic and options; Gemini model selection and consent are prompted:
+nila learn "Python dictionaries" --minutes 15 --rounds 10
+nila learn --list
+nila learn --show SESSION_ID
+nila learn --stop SESSION_ID
+nila knowledge
+```
+
+The guided `/learn` path inside interactive chat is the simplest terminal route. API keys are entered using a hidden prompt, not command arguments. Ctrl+C stops a terminal session. Web transcripts show partial local tokens; CLI transcripts print each completed turn and preserve partial content on stop.
+
 ## Personalize Nila
 
 Open **Preferences** in the Web UI, or use:
 
 ```powershell
-nila settings --user "Nadeem" --college "Your college" --course "Your course"
+nila settings --user "Nadeem" --position Student --course "Your course" --completion-year 2027
+nila settings --position Employee --company "Your company" --job-role "Developer"
 nila settings --description "I am learning web development" --interests "Python, cybersecurity"
 nila settings --tone Friendly --language English
 nila settings --auto-memory on
@@ -125,6 +171,8 @@ The update trust boundary is this GitHub repository and HTTPS. Git blob checks d
 | `nila history`, `nila delete ID`, `nila export ID` | Sidebar history, delete and export |
 | `nila settings` | Preferences and profile |
 | `nila memory`, `nila notes`, `nila tasks` | Memory, Notes, Tasks |
+| `nila gemini setup/models/remove`, `nila learn` | Learning Lab connection, session controls and transcript |
+| `nila knowledge list/edit/disable/enable/remove` | Learning Lab → Learned knowledge |
 | `nila models`, `nila model use NAME` | Preferences model selector; System model list |
 | `nila pull NAME` | System → Model download |
 | `nila doctor` | System → Run diagnostics |
@@ -184,7 +232,7 @@ The server binds to loopback only. Do not publish it through a tunnel or expose 
 - Real model speed and Malayalam quality depend on your hardware and selected model. `llama3.2:1b` is a starting point, not a guarantee of advanced reasoning.
 - Normal chat does not autonomously create schedules; use the automation draft/form or CLI.
 - No voice, wake word, PDF ingestion, arbitrary file manipulation, live web search, or remote computer control.
-- Initial installs, updates and model downloads need internet; installed local models and scheduled local operations work offline.
+- Initial installs, updates, model downloads and Gemini Learning Lab require internet. Installed local models and scheduled local operations work offline.
 - Automatic binary updating is implemented for the managed Windows installer. Linux/source installs require manual updates and rebuilds.
 - The Windows installer and DPAPI path require Windows validation; see the current [validation report](docs/VALIDATION.md).
 
@@ -195,3 +243,7 @@ The server binds to loopback only. Do not publish it through a tunnel or expose 
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Validation](docs/VALIDATION.md)
 - [Changelog](CHANGELOG.md)
+
+## License
+
+Nila source code is licensed under the [MIT License](LICENSE), copyright 2026 Nadeem Muhammed. Ollama models, Gemini services and third-party dependencies retain their own licenses and terms.

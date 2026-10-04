@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import "./style.css";
 import { Automations, SystemPanel } from "./ExtensionPanels";
+import { LearningLab } from "./LearningLab";
 
 type Settings = {
   assistant_name: string;
@@ -46,7 +47,11 @@ type Settings = {
   auto_memory: boolean;
   auto_update: boolean;
   description: string;
-  college: string;
+  position: string;
+  completion_year: string;
+  company: string;
+  job_role: string;
+  knowledge_enabled: boolean;
   course: string;
   interests: string;
   tone: string;
@@ -67,7 +72,8 @@ type Page =
   | "tasks"
   | "settings"
   | "automations"
-  | "system";
+  | "system"
+  | "learning";
 const defaults: Settings = {
   assistant_name: "Nila",
   user_name: "",
@@ -79,7 +85,11 @@ const defaults: Settings = {
   auto_memory: true,
   auto_update: true,
   description: "",
-  college: "",
+  position: "Other",
+  completion_year: "",
+  company: "",
+  job_role: "",
+  knowledge_enabled: true,
   course: "",
   interests: "",
   tone: "Friendly",
@@ -400,12 +410,13 @@ function App() {
     }
   }
   const nav = [
-    { id: "automations", icon: RefreshCw, label: "Automations" },
-    { id: "system", icon: Terminal, label: "System" },
     { id: "chat", icon: MessageSquare, label: "Conversations" },
+    { id: "learning", icon: Brain, label: "Learning Lab" },
     { id: "memories", icon: Brain, label: "Memory" },
     { id: "notes", icon: NotebookPen, label: "Notes" },
     { id: "tasks", icon: CheckCheck, label: "Tasks" },
+    { id: "automations", icon: RefreshCw, label: "Automations" },
+    { id: "system", icon: Terminal, label: "System" },
   ] as const;
   const suggestions = [
     {
@@ -663,7 +674,7 @@ function App() {
                         <span>
                           {status.online
                             ? `Run ollama pull ${settings.model}`
-                            : "Open Ollama, then download llama3.2:1b."}
+                            : "Open Ollama and install your preferred model (recommended: llama3.2:1b)."}
                         </span>
                       </div>
                       <button
@@ -871,6 +882,8 @@ function App() {
               </div>
             </div>
           </>
+        ) : page === "learning" ? (
+          <LearningLab />
         ) : page === "automations" ? (
           <Automations />
         ) : page === "system" ? (
@@ -940,25 +953,75 @@ function App() {
                   </label>
                   <div className="form-grid">
                     <label>
-                      College
-                      <input
-                        maxLength={150}
-                        value={draft.college}
+                      Position
+                      <select
+                        aria-label="Position"
+                        value={draft.position}
                         onChange={(e) =>
-                          setDraft({ ...draft, college: e.target.value })
+                          setDraft({ ...draft, position: e.target.value })
                         }
-                      />
+                      >
+                        <option>Student</option>
+                        <option>Employee</option>
+                        <option>Self-employed</option>
+                        <option>Other</option>
+                        <option>Prefer not to say</option>
+                      </select>
                     </label>
-                    <label>
-                      Course / role
-                      <input
-                        maxLength={150}
-                        value={draft.course}
-                        onChange={(e) =>
-                          setDraft({ ...draft, course: e.target.value })
-                        }
-                      />
-                    </label>
+                    {draft.position === "Student" && (
+                      <>
+                        <label>
+                          Course
+                          <input
+                            maxLength={150}
+                            value={draft.course}
+                            onChange={(e) =>
+                              setDraft({ ...draft, course: e.target.value })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Completion year
+                          <input
+                            placeholder="2027"
+                            inputMode="numeric"
+                            maxLength={4}
+                            pattern="[0-9]{4}|"
+                            value={draft.completion_year}
+                            onChange={(e) =>
+                              setDraft({
+                                ...draft,
+                                completion_year: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      </>
+                    )}
+                    {["Employee", "Self-employed"].includes(draft.position) && (
+                      <>
+                        <label>
+                          Company name
+                          <input
+                            maxLength={150}
+                            value={draft.company}
+                            onChange={(e) =>
+                              setDraft({ ...draft, company: e.target.value })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Job role
+                          <input
+                            maxLength={150}
+                            value={draft.job_role}
+                            onChange={(e) =>
+                              setDraft({ ...draft, job_role: e.target.value })
+                            }
+                          />
+                        </label>
+                      </>
+                    )}
                     <label>
                       Interests
                       <input
@@ -989,7 +1052,12 @@ function App() {
                     <Cpu size={18} />
                     Local model
                   </h2>
-                  <p>No API key needed. Connects to Ollama on this computer.</p>
+                  <p>
+                    llama3.2:1b is recommended, not required. Select any
+                    compatible Ollama text-chat model. Local models need no API
+                    key; cloud-tagged models use Ollama’s own cloud access and
+                    require internet.
+                  </p>
                   <label>
                     Model name
                     <input
@@ -1135,6 +1203,25 @@ function App() {
                     Keep your encryption key and protect your device account.
                   </p>
                 </div>
+                <label className="check-label panel">
+                  <input
+                    type="checkbox"
+                    checked={draft.knowledge_enabled}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        knowledge_enabled: e.target.checked,
+                      })
+                    }
+                  />
+                  <span>
+                    Use relevant Learning Lab notes in chat
+                    <small>
+                      Model-reviewed knowledge can contain mistakes. Manage
+                      individual lessons in Learning Lab.
+                    </small>
+                  </span>
+                </label>
                 <button className="primary" type="submit">
                   Save preferences
                   <Check size={16} />

@@ -10,7 +10,7 @@ from pathlib import Path
 from platformdirs import user_data_dir
 from .vault import Vault, PREFIX
 
-DEFAULTS = {'assistant_name':'Nila','user_name':'','model':'llama3.2:1b','language':'Auto','temperature':.7,'num_ctx':2048,'memory_enabled':True,'auto_memory':True,'auto_update':True,'description':'','college':'','course':'','interests':'','tone':'Friendly'}
+DEFAULTS = {'assistant_name':'Nila','user_name':'','model':'llama3.2:1b','language':'Auto','temperature':.7,'num_ctx':2048,'memory_enabled':True,'auto_memory':True,'auto_update':True,'description':'','position':'Other','completion_year':'','company':'','job_role':'','knowledge_enabled':True,'course':'','interests':'','tone':'Friendly'}
 
 class Store:
     def __init__(self,root=None):
@@ -64,7 +64,7 @@ class Store:
         for field in fields: result[field]=self.open(result[field])
         return result
     def settings(self):
-        with self.db() as db: return DEFAULTS|{r['key']:json.loads(self.open(r['value'])) for r in db.execute('SELECT * FROM settings')}
+        with self.db() as db: return DEFAULTS|{r['key']:json.loads(self.open(r['value'])) for r in db.execute('SELECT * FROM settings') if r['key'] in DEFAULTS}
     def save_settings(self,values):
         with self.db() as db: db.executemany('INSERT OR REPLACE INTO settings VALUES (?,?)',[(k,self.seal(json.dumps(v))) for k,v in values.items() if k in DEFAULTS])
         return self.settings()

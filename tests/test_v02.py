@@ -16,11 +16,11 @@ def store(tmp_path):return Store(tmp_path)
 def test_encryption_and_existing_database_migration(tmp_path):
     db=sqlite3.connect(tmp_path/'nila.db')
     db.executescript("CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT NOT NULL); CREATE TABLE memories(id TEXT PRIMARY KEY,content TEXT NOT NULL,created REAL NOT NULL);")
-    db.execute('INSERT INTO settings VALUES (?,?)',('college',json.dumps('Example College')))
+    db.execute('INSERT INTO settings VALUES (?,?)',('company',json.dumps('Example Company')))
     db.execute('INSERT INTO memories VALUES (?,?,?)',('old','Sensitive old memory',time.time()))
     db.commit();db.close()
     store=Store(tmp_path)
-    assert store.settings()['college']=='Example College'
+    assert store.settings()['company']=='Example Company'
     assert store.items('memories')[0]['content']=='Sensitive old memory'
     cid=store.create_chat()['id'];store.add_message(cid,'user','Private chat content')
     store.add_item('notes','Private note content')
@@ -45,13 +45,13 @@ def test_memory_dedup_and_forget(store):
 
 def test_profile_and_auto_memory_switches(store):
     with TestClient(create_app(store)) as c:
-        settings=c.get('/api/settings').json()|{'college':'Example College','description':'Learning web development','auto_memory':False,'tone':'Friendly'}
+        settings=c.get('/api/settings').json()|{'position':'Employee','company':'Example Company','description':'Learning web development','auto_memory':False,'tone':'Friendly'}
         assert c.put('/api/settings',json=settings).status_code==200
-        assert c.get('/api/settings').json()['college']=='Example College'
+        assert c.get('/api/settings').json()['company']=='Example Company'
         assert c.put('/api/settings',json=settings|{'tone':'evil'}).status_code==422
     from nila.engine import context
     cid=store.create_chat()['id']
-    assert 'Example College' in context(store,cid,store.settings())[0]['content']
+    assert 'Example Company' in context(store,cid,store.settings())[0]['content']
 
 def test_memory_requires_verbatim_evidence_and_filters_secrets(store,monkeypatch):
     original=httpx.AsyncClient;calls=[]

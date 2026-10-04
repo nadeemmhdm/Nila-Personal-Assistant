@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from . import __version__
 from .storage import Store
 from .engine import models, reply, NilaError
@@ -24,10 +24,19 @@ class Settings(BaseModel):
     auto_memory: bool = True
     auto_update: bool = True
     description: str = Field(default="", max_length=1000)
-    college: str = Field(default="", max_length=150)
+    position: Literal["Student","Employee","Self-employed","Other","Prefer not to say"] = "Other"
+    completion_year: str = Field(default="",pattern=r"^(|[0-9]{4})$")
+    company: str = Field(default="",max_length=150)
+    job_role: str = Field(default="",max_length=150)
+    knowledge_enabled: bool = True
     course: str = Field(default="", max_length=150)
     interests: str = Field(default="", max_length=500)
     tone: Literal["Friendly","Professional","Concise"] = "Friendly"
+    @model_validator(mode="after")
+    def role_fields(self):
+        if self.position != "Student": self.course="";self.completion_year=""
+        if self.position not in {"Employee","Self-employed"}: self.company="";self.job_role=""
+        return self
     @field_validator("assistant_name", "user_name")
     @classmethod
     def clean_name(cls, v):
@@ -66,11 +75,14 @@ def create_app(store=None):
         start_auto_update(store)
         try: yield
         finally:
+            await lab.close()
             worker.cancel()
             with suppress(asyncio.CancelledError): await worker
     app = FastAPI(lifespan=lifespan,title="Nila Personal Assistant",version=__version__,docs_url=None,redoc_url=None)
     running = {}
     register(app,store,scheduler)
+    from .learning_api import register as register_learning
+    lab=register_learning(app,store)
 
     @app.middleware("http")
     async def local_only(request, call_next):

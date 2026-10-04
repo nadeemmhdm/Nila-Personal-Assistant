@@ -25,7 +25,6 @@ class ModelPull(BaseModel):
     model:str=Field(min_length=1,max_length=120,pattern=r'^[a-zA-Z0-9_.:/-]+$')
 
 async def pull_model(model,on_progress=None):
-    if ':cloud' in model:raise ValueError('Choose a local model for offline use')
     async with httpx.AsyncClient(timeout=httpx.Timeout(600,connect=5),trust_env=False) as client:
         async with client.stream('POST',ollama_url()+'/api/pull',json={'model':model,'stream':True}) as r:
             r.raise_for_status()

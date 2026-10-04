@@ -4,6 +4,7 @@ import json
 import sys
 import threading
 import webbrowser
+import getpass
 from . import __version__
 from .storage import Store
 from .engine import reply, models, NilaError
@@ -20,6 +21,25 @@ def parser():
     web = sub.add_parser("web",help="Start the local web interface")
     web.add_argument("--port",type=int,default=8765)
     web.add_argument("--no-open",action="store_true")
+    gemini=sub.add_parser("gemini",help="Configure Gemini without exposing the key in command history")
+    gemini.add_argument("action",choices=["setup","models","remove","status"])
+    learn=sub.add_parser("learn",help="Visible Gemini/Ollama study session")
+    learn.add_argument("topic",nargs="?")
+    learn.add_argument("--description",default="")
+    learn.add_argument("--minutes",type=int,default=15)
+    learn.add_argument("--rounds",type=int,default=10)
+    learn.add_argument("--gemini-model")
+    learn.add_argument("--model")
+    learn.add_argument("--consent",action="store_true",help="Allow sending session content to Google")
+    learn.add_argument("--no-save",action="store_true")
+    learn.add_argument("--list",action="store_true")
+    learn.add_argument("--show")
+    learn.add_argument("--stop")
+    learn.add_argument("--delete")
+    kb=sub.add_parser("knowledge",help="Inspect, edit or forget learned study notes")
+    kb.add_argument("action",nargs="?",default="list",choices=["list","edit","disable","enable","remove"])
+    kb.add_argument("id",nargs="?")
+    kb.add_argument("--text")
     sub.add_parser("worker",help="Run offline scheduled tasks until stopped")
     update = sub.add_parser("update",help="Check or install main-branch updates")
     update.add_argument("--check",action="store_true")
@@ -52,7 +72,11 @@ def parser():
     settings.add_argument("--user")
     settings.add_argument("--language",choices=["Auto","English","Malayalam"])
     settings.add_argument("--description")
-    settings.add_argument("--college")
+    settings.add_argument("--position",choices=["Student","Employee","Self-employed","Other","Prefer not to say"])
+    settings.add_argument("--completion-year")
+    settings.add_argument("--company")
+    settings.add_argument("--job-role")
+    settings.add_argument("--knowledge",choices=["on","off"])
     settings.add_argument("--course")
     settings.add_argument("--interests")
     settings.add_argument("--tone",choices=["Friendly","Professional","Concise"])
@@ -75,11 +99,29 @@ async def answer(store,cid,prompt):
 
 async def interactive(store,cid):
     s = store.settings()
-    print(f"\n{s['assistant_name']} · {s['model']} · local\nConversation: {cid}\n/exit to quit · /new for a new chat · /remember TEXT to save a fact\n")
+    print(f"\n{s['assistant_name']} · {s['model']} · local\nConversation: {cid}\nJust type your message and press Enter. No command needed per message.\n/help for shortcuts · /exit to quit\n")
     while True:
         try: prompt = input("You › ").strip()
         except EOFError: break
         if prompt == "/exit": break
+        if prompt == "/help":
+            print('/new · /model · /learn · /remember TEXT · /exit. Or just type a message.')
+            continue
+        if prompt == "/model":
+            try:
+                available=await models()
+                for index,m in enumerate(available,1):print(f"{index}. {m['name']}")
+                choice=input('Model number or name: ').strip()
+                name=available[int(choice)-1]['name'] if choice.isdigit() and 1<=int(choice)<=len(available) else choice
+                from .server import Settings
+                s=store.save_settings(Settings(**(store.settings()|{'model':name})).model_dump())
+                print('Using',s['model'])
+            except (NilaError,ValueError) as exc:print(exc)
+            continue
+        if prompt == "/learn":
+            try:await learning_wizard(store)
+            except (RuntimeError,ValueError) as exc:print(exc)
+            continue
         if prompt == "/new":
             cid = store.create_chat()["id"]
             print(f"New conversation: {cid}")
@@ -97,12 +139,54 @@ async def interactive(store,cid):
 
 def main():
     if hasattr(sys.stdout,"reconfigure"): sys.stdout.reconfigure(encoding="utf-8")
-    args = parser().parse_args()
+    argv=sys.argv[1:]
+    known={'ask','chat','web','worker','update','service','pull','automation','doctor','models','model','history','delete','export','settings','memory','notes','tasks','gemini','learn','knowledge'}
+    if argv and not argv[0].startswith('-') and argv[0] not in known:
+        argv=['ask',' '.join(argv)]
+    args = parser().parse_args(argv)
     store = Store()
     try:
         from .updater import start_auto_update
         if args.command in {None,"chat","ask","web"}: start_auto_update(store)
-        if args.command == "worker":
+        if args.command == "gemini":
+            from .learning import save_key,delete_key,key,gemini_models
+            if args.action=='setup':save_key(store,getpass.getpass('Gemini API key (hidden): '));print('Key saved encrypted. Use nila gemini models to check access.')
+            elif args.action=='remove':delete_key(store);print('Key removed. Active sessions will stop.')
+            elif args.action=='models':print(json.dumps(asyncio.run(gemini_models(store)),indent=2))
+            else:print('Gemini configured' if key(store) else 'No Gemini key saved')
+        elif args.command == "learn":
+            from .learning import LearningLab,SessionConfig,sessions,session,gemini_models
+            lab=LearningLab(store)
+            if args.list:print(json.dumps(sessions(store),indent=2,ensure_ascii=False))
+            elif args.show:print(json.dumps(session(store,args.show),indent=2,ensure_ascii=False))
+            elif args.stop:lab.stop(args.stop);print('Stop requested.')
+            elif args.delete:
+                if session(store,args.delete)['status']=='running':raise ValueError('Stop session first')
+                with store.db() as db:db.execute('DELETE FROM learning_sessions WHERE id=?',(args.delete,));db.execute('DELETE FROM knowledge WHERE session_id=?',(args.delete,))
+            else:
+                topic=args.topic or input('What would you like the models to discuss? ').strip()
+                gm=args.gemini_model
+                if not gm:
+                    available=asyncio.run(gemini_models(store))
+                    for index,m in enumerate(available,1):print(f"{index}. {m['name']}")
+                    choice=input('Gemini model number or name: ').strip();gm=available[int(choice)-1]['name'] if choice.isdigit() and 1<=int(choice)<=len(available) else choice
+                print('Topic, description and model answers are sent to Google. No profile/chat history is included. Free-tier quotas and Google data policies apply; costs depend on your account. This saves study notes, not model weights.')
+                consent=args.consent or input('Start this cloud review session? [y/N] ').strip().lower()=='y'
+                config=SessionConfig(topic=topic,description=args.description,local_model=args.model or store.settings()['model'],gemini_model=gm,minutes=args.minutes,max_rounds=args.rounds,save_knowledge=not args.no_save,consent=consent)
+                asyncio.run(watch_learning(lab,config))
+        elif args.command == "knowledge":
+            from .learning import ensure,knowledge
+            ensure(store)
+            if args.action=='list':print(json.dumps(knowledge(store),indent=2,ensure_ascii=False))
+            elif not args.id:raise ValueError('Provide lesson ID')
+            else:
+                with store.db() as db:
+                    if args.action=='remove':db.execute('DELETE FROM knowledge WHERE id=?',(args.id,))
+                    elif args.action=='edit':
+                        if not args.text or not args.text.strip() or len(args.text)>2000:raise ValueError('Provide --text (1–2000 characters)')
+                        db.execute('UPDATE knowledge SET content=? WHERE id=?',(store.seal(args.text.strip()),args.id))
+                    else:db.execute('UPDATE knowledge SET enabled=? WHERE id=?',(int(args.action=='enable'),args.id))
+        elif args.command == "worker":
             from .worker import run_worker
             asyncio.run(run_worker(store))
         elif args.command == "service":
@@ -172,11 +256,11 @@ def main():
             values = store.settings()
             for key,arg in [("assistant_name",args.name),("user_name",args.user),("language",args.language)]:
                 if arg is not None: values[key]=arg
-            for key in ['description','college','course','interests','tone','temperature']:
+            for key in ['description','position','completion_year','company','job_role','course','interests','tone','temperature']:
                 arg=getattr(args,key)
                 if arg is not None:values[key]=arg
             if args.context is not None:values['num_ctx']=args.context
-            for arg,key in [('auto_memory','auto_memory'),('memory','memory_enabled'),('auto_update','auto_update')]:
+            for arg,key in [('auto_memory','auto_memory'),('memory','memory_enabled'),('auto_update','auto_update'),('knowledge','knowledge_enabled')]:
                 value=getattr(args,arg)
                 if value is not None:values[key]=value=='on'
             print(json.dumps(store.save_settings(Settings(**values).model_dump()),indent=2,ensure_ascii=False))
@@ -209,5 +293,40 @@ def main():
     except (NilaError, RuntimeError, ValueError, KeyError) as exc:
         print(str(exc),file=sys.stderr)
         raise SystemExit(1)
+
+async def learning_wizard(store):
+    from .learning import LearningLab,SessionConfig,key,save_key,gemini_models
+    if not key(store):save_key(store,getpass.getpass('Gemini API key (hidden): '))
+    available=await gemini_models(store)
+    for index,m in enumerate(available,1):print(f"{index}. {m['name']}")
+    choice=input('Gemini model number or name: ').strip()
+    name=available[int(choice)-1]['name'] if choice.isdigit() and 1<=int(choice)<=len(available) else choice
+    topic=input('Topic: ').strip();description=input('Description (optional): ').strip()
+    minutes=int(input('Time limit in minutes [15]: ').strip() or '15')
+    print('This discussion goes to Google; personal chat history/profile are excluded. Free-tier quotas/data terms apply. Saved lessons are model-reviewed notes, not weight training.')
+    if input('Start? [y/N] ').strip().lower()!='y':return
+    lab=LearningLab(store)
+    await watch_learning(lab,SessionConfig(topic=topic,description=description,minutes=minutes,local_model=store.settings()['model'],gemini_model=name,consent=True))
+
+async def watch_learning(lab,config):
+    from .learning import session
+    iid=lab.start(config);task=lab.tasks[iid];seen=set()
+    print(f'Learning session: {iid} · Ctrl+C to stop')
+    try:
+        while not task.done():
+            view=session(lab.store,iid)
+            # Print completed turns once; Web UI shows live partial local tokens.
+            messages=view['messages']
+            for m in messages:
+                if m['id'] not in seen and (m['actor']!='ollama' or any(n['round']==m['round'] and n['actor']=='gemini' for n in messages)):
+                    print(f"\n[{m['actor']} · round {m['round']}]\n{m['content']}",flush=True);seen.add(m['id'])
+            await asyncio.sleep(.4)
+        await task
+    finally:
+        await lab.close()
+        view=session(lab.store,iid)
+        for m in view['messages']:
+            if m['id'] not in seen:print(f"\n[{m['actor']}]\n{m['content']}")
+        print('Session:',view['status'],view['error'])
 
 if __name__ == "__main__": main()

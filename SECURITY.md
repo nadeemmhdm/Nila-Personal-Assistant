@@ -2,7 +2,7 @@
 
 ## Supported scope
 
-Nila 0.2.x is a single-user, local-first assistant. Use the latest main-branch build and review changes before deploying it in a sensitive environment. Nila is not a hardened multi-tenant service.
+Nila 0.3.x is a single-user, local-first assistant. Use the latest main-branch build and review changes before deploying it in a sensitive environment. Nila is not a hardened multi-tenant service.
 
 ## Data protection
 
@@ -39,3 +39,15 @@ Installations are staged; the active pointer is switched only after a new binary
 ## Reporting a vulnerability
 
 Do not post chat databases, encryption keys, secrets, or exploit details in a public issue. Use GitHub's private vulnerability reporting option if enabled. If it is unavailable, open a minimal issue requesting a private contact without sensitive details. Include version, OS, affected component and reproducible non-sensitive steps once a private channel is available.
+
+## Gemini Learning Lab
+
+Gemini integration is optional. Its API key is stored in a separate encrypted secrets table and is never returned by settings or key-status endpoints. CLI setup uses a hidden prompt. The key is sent only in the `x-goog-api-key` header to the fixed HTTPS Gemini API origin. Redirects are not followed; upstream error bodies are not echoed into the transcript.
+
+Starting a session requires explicit acknowledgement that its topic, description, question and local model answers are sent to Google. The Learning Lab does not load personal profile, chat history or personal memory into its model prompts. It is an online feature. Google unpaid-service data terms and account-specific quotas apply; the application cannot guarantee a key has no billable usage. Do not include private information in session input.
+
+Sessions have bounded duration and rounds, support cancellation during network requests, and stop on quota errors without automatic retries. The lab never executes model output as code. Gemini feedback is a model opinion, not proof of factual accuracy. Only acceptable reviews may produce saved lessons; lessons are editable and removable and are injected as untrusted reference text into relevant later chats. This changes retrieved context, not model weights.
+
+Deleting a session also removes its associated learned lessons. Removing the API key requests active sessions to stop; an already submitted request cannot be recalled from Google. Application-level cancellation cannot undo charges or processing already initiated by a provider. Existing ordinary conversation transcripts may contain copies of previously used content.
+
+Ollama cloud-tagged models selected for ordinary chat may route data through Ollama's cloud service and require that service's credentials. Use locally downloaded models for offline operation. Learning Lab rejects explicitly cloud-tagged local-model selections.

@@ -5,7 +5,7 @@ import re
 import httpx
 
 SENSITIVE=re.compile(r'password|passwd|api.?key|secret|token|otp|pin code|credit card|bank account|aadhaar|passport|diagnos|medication|religion|politic|sexual|private key|sk-[\w-]{8,}|\b\d{8,}\b',re.I)
-CATEGORIES={'name','college','course','interest','preference','goal','occupation'}
+CATEGORIES={'name','course','interest','preference','goal','occupation'}
 SCHEMA={'type':'object','properties':{'facts':{'type':'array','maxItems':3,'items':{'type':'object','properties':{'category':{'type':'string','enum':sorted(CATEGORIES)},'value':{'type':'string'},'evidence':{'type':'string'}},'required':['category','value','evidence'],'additionalProperties':False}}},'required':['facts'],'additionalProperties':False}
 
 async def learn(store,text):
