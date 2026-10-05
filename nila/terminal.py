@@ -19,7 +19,7 @@ def plain_text(text):
     return out.getvalue().strip()
 
 def banner():
-    console.print(Panel(Text('N I L A',style='bold bright_cyan',justify='center'),subtitle='Your personal assistant',border_style='bright_magenta',padding=(1,6),expand=False))
+    console.print(Panel(Text('N I L A',style='bold bright_cyan',justify='center'),subtitle='Your personal assistant',border_style='bright_magenta',padding=(1,6),width=36,expand=True))
     console.print('[dim]Just type your message. /help for shortcuts · /exit to leave[/dim]')
 
 async def render_reply(store,cid,prompt,**kwargs):

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Handle standalone greetings locally without model/search calls or unrelated profile/history retrieval; retain normal model generation for questions and follow-ups.
+- Shorten chat instructions, include developer attribution only when requested, and clarify that user projects are not the assistant's experiences.
+- Widen the CLI welcome panel to display its subtitle fully.
+
 - Report installer-lock contention as busy, add `nila version` as an alias for `--version`, and catch the `updatw` typo before it can start chat or automatic updating.
 
 - Report Windows executable policy denials as NILA-021, include the update log path and preserve mandatory binary validation. Document that the device trust policy must accept the build before activation.

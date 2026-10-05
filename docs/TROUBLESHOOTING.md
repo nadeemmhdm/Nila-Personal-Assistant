@@ -88,3 +88,9 @@ The installer holds an exclusive OS file handle during installation. A manual up
 Let the active update finish. `nila settings --auto-update off` prevents future automatic launches but does not cancel the current installer. If an interrupted update remains stuck, save your work and restart Windows before retrying the official one-command installer. It rechecks prerequisites and preserves the separate data directory. Do not run several installers at once.
 
 Use `nila --version` on older versions. New builds also accept `nila version`. Earlier builds interpreted `version` and the misspelling `updatw` as chat prompts, which could start an automatic update; an Ollama connection error from those commands was not a version-check failure.
+
+## Greeting returns profile details or unrelated code
+
+Update to the latest main build. Standalone greetings (Hi/Hello/Hey, Malayalam greetings, optionally addressed to Nila) receive a short local greeting using the saved user name; no model or search request is made. Greetings containing a real question still use the selected model. Developer attribution is included in ordinary chat instructions only when asked. Personal background must not be represented as the assistant's work or experiences.
+
+If an older conversation already contains unrelated generated content, use `/new` in CLI or New conversation in Web before asking a substantive question. This keeps the old chat in history while starting without its misleading replies. General answer relevance still depends on the selected model; this change is not model-weight training. Greeting templates currently cover English and Malayalam.

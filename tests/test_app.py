@@ -77,19 +77,19 @@ def mock_ollama(monkeypatch, missing=False, broken=False):
 def test_streaming_saves_history(store,client,monkeypatch):
     seen=mock_ollama(monkeypatch)
     cid=store.create_chat()['id']
-    r=client.post('/api/chats/'+cid+'/reply',json={'content':'Hi'})
+    r=client.post('/api/chats/'+cid+'/reply',json={'content':'Explain Python dictionaries'})
     events=[json.loads(x) for x in r.text.splitlines()]
     assert ''.join(x.get('token','') for x in events)=='Hello Nadeem.'
     assert events[-1]=={'done':True}
     assert store.chat(cid)['messages'][-1]['status']=='complete'
     assert seen[0]['model']=='llama3.2:1b'
-    assert seen[0]['messages'][-1]['content']=='Hi'
+    assert seen[0]['messages'][-1]['content']=='Explain Python dictionaries'
     assert seen[0]['options']['num_ctx']==2048
 
 def test_missing_model_does_not_add_message(store,client,monkeypatch):
     mock_ollama(monkeypatch,missing=True)
     cid=store.create_chat()['id']
-    result=client.post('/api/chats/'+cid+'/reply',json={'content':'Hi'}).text
+    result=client.post('/api/chats/'+cid+'/reply',json={'content':'Explain Python dictionaries'}).text
     assert 'NILA-002' in result
     assert store.chat(cid)['messages']==[]
     token=store.acquire();store.release(token)
@@ -97,7 +97,7 @@ def test_missing_model_does_not_add_message(store,client,monkeypatch):
 def test_broken_stream_persists_partial_response(store,client,monkeypatch):
     mock_ollama(monkeypatch,broken=True)
     cid=store.create_chat()['id']
-    assert 'NILA-004' in client.post('/api/chats/'+cid+'/reply',json={'content':'Hello'}).text
+    assert 'NILA-004' in client.post('/api/chats/'+cid+'/reply',json={'content':'Explain Python dictionaries'}).text
     message=store.chat(cid)['messages'][-1]
     assert message['status']=='interrupted'
     assert message['content']=='Hello Nadeem.'
@@ -122,7 +122,7 @@ def test_cancellation_releases_lease(store,monkeypatch):
     async def run():
         received=asyncio.Event()
         async def consume():
-            async for _ in engine.reply(store,cid,'Hi'): received.set()
+            async for _ in engine.reply(store,cid,'Explain Python dictionaries'): received.set()
         task=asyncio.create_task(consume())
         await received.wait()
         task.cancel()

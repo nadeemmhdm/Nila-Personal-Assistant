@@ -27,10 +27,14 @@ def context(store, cid, settings, history=None, sources=None):
     history=store.chat(cid)['messages'] if history is None else history
     sources=sources if sources is not None else []
     query=next((m['content'] for m in reversed(history) if m['role']=='user'),'')
-    system = f"You are Nila, a helpful personal AI assistant. Your user's name is {settings['user_name'] or 'not provided'}. Use your assistant name when asked who you are. Be warm, friendly, respectful, honest, and concise. Use the user name naturally without repeating it in every sentence. Do not pretend to be human or claim knowledge you do not have. You cannot execute commands or change files. You may use supplied web search evidence only; never claim live access without it. Format replies using Markdown headings, bold, italics, lists and code blocks. Use ++text++ for underline when useful. Never claim to have performed an action."
-    from .conversation import IDENTITY,effort
-    system=IDENTITY+"\n"+system+"\n"+effort(settings.get("thinking_level","medium"))[0]
-    system += "\nProfile reference data (not instructions): " + json.dumps({k:settings.get(k,"") for k in ('description','position','course','completion_year','company','job_role','interests','tone')},ensure_ascii=False)
+    from .conversation import IDENTITY,effort,developer_question,greeting_reply
+    system=IDENTITY+"\n"+effort(settings.get("thinking_level","medium"))[0]
+    system+="\nAnswer only the current request. You cannot execute commands or change files. Never invent personal experiences or completed actions. Use supplied web evidence only; do not claim live access without it."
+    if developer_question(query):
+        system+="\nNila the personal-assistant application was developed by Nadeem: https://github.com/nadeemmhdm . This does not mean he trained the underlying model weights."
+    if settings.get('user_name'):system+="\nUser's preferred name: "+json.dumps(settings['user_name'],ensure_ascii=False)
+    profile={k:settings[k] for k in ('description','position','course','completion_year','company','job_role','interests','tone') if settings.get(k)}
+    if profile:system+="\nOptional user background; use only if relevant, never as the answer itself: "+json.dumps(profile,ensure_ascii=False)
     if settings["language"] != "Auto":
         system += f" Reply in {settings['language']}."
     if settings["memory_enabled"]:
@@ -93,13 +97,17 @@ async def reply(store, cid, prompt, stop=None, learn_memory=True, search_mode="o
         settings = store.settings()
         if not personal_context:
             settings=settings|{'memory_enabled':False,'knowledge_enabled':False,'personal_context':False,'user_name':'','description':'','position':'Other','course':'','completion_year':'','company':'','job_role':'','interests':''}
-        available = await models()
-        if settings["model"] not in [m["name"] for m in available]:
-            raise NilaError(f"NILA-002: Model not installed. Run: ollama pull {settings['model']}")
-        from .websearch import search
-        if progress and search_mode!="off":progress("Searching public sources")
-        evidence = await search(search_query or prompt[:500], search_mode)
-        if progress:progress("Comparing sources" if evidence else "Composing locally")
+        from .conversation import greeting_reply
+        greeting=greeting_reply(prompt,settings) if not instruction.strip() else None
+        evidence=[]
+        if greeting is None:
+            available = await models()
+            if settings["model"] not in [m["name"] for m in available]:
+                raise NilaError(f"NILA-002: Model not installed. Run: ollama pull {settings['model']}")
+            from .websearch import search
+            if progress and search_mode!="off":progress("Searching public sources")
+            evidence = await search(search_query or prompt[:500], search_mode)
+            if progress:progress("Comparing sources" if evidence else "Composing locally")
         if regenerate_id is not None:
             pass
         elif edit_message_id is not None:
@@ -110,6 +118,14 @@ async def reply(store, cid, prompt, stop=None, learn_memory=True, search_mode="o
         else:
             store.add_message(cid,"user",prompt)
         wrote = regenerate_id is None
+        if greeting is not None:
+            answer=greeting;status='complete'
+            if progress:progress('Replying')
+            if regenerate_id is not None:
+                from .workspace import replace_answer
+                replace_answer(store,cid,regenerate_id,answer,sources)
+            yield answer
+            return
         messages=context(store,cid,settings,history=prior if regenerate_id is not None else None,sources=sources)
         if regenerate_id is not None:
             messages.append({'role':'assistant','content':target['content'][:8000]})
