@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix Windows CLI smoke-test decoding: explicitly use UTF-8 for subprocess input/output so the Unicode Nila banner is not decoded as CP1252.
+
 ## 0.5.0 — 2026-10-05
 
 - Redesigned chat composer, opposite-side bubbles, themes, collapsible Explore/History sidebar and inline notices.

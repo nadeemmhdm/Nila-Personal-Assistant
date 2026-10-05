@@ -112,7 +112,9 @@ def test_role_specific_profile_and_arbitrary_model():
 
 def test_plain_cli_input_and_interactive_quit(store,monkeypatch):
     monkeypatch.setenv('NILA_DATA_DIR',str(store.root))
-    p=subprocess.run([sys.executable,'-m','nila'],input='/help\n/exit\n',capture_output=True,text=True)
+    # CLI stdout is UTF-8; Windows subprocess defaults to the ANSI code page.
+    monkeypatch.setenv('PYTHONIOENCODING','utf-8')
+    p=subprocess.run([sys.executable,'-m','nila'],input='/help\n/exit\n',capture_output=True,text=True,encoding="utf-8")
     assert p.returncode==0 and 'Just type your message' in p.stdout
-    p=subprocess.run([sys.executable,'-m','nila','Explain','Python','dictionaries'],capture_output=True,text=True)
+    p=subprocess.run([sys.executable,'-m','nila','Explain','Python','dictionaries'],capture_output=True,text=True,encoding="utf-8")
     assert 'invalid choice' not in p.stderr and 'NILA-001' in p.stderr
