@@ -80,3 +80,11 @@ Nila currently builds unsigned executables locally. Identify the policy through 
 Nila does not disable protection, add antivirus exclusions, skip smoke checks or silently switch to another execution route. Repeated rebuilding does not itself resolve a trust-policy denial. A trusted signed distribution requires a legitimate signing identity and policy acceptance; a self-signed build is not automatically trusted. The older installed updater may still show its generic message; inspect `last-update.log` for the original denial.
 
 References: [Microsoft App Control troubleshooting](https://learn.microsoft.com/en-us/windows/security/application-security/application-control/app-control-for-business/operations/appcontrol-debugging-and-troubleshooting), [Smart App Control FAQ](https://support.microsoft.com/en-us/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions).
+
+## Another Nila installation/update is running
+
+The installer holds an exclusive OS file handle during installation. A manual update can overlap an automatic update; interrupting a terminal can also leave its child installer running. A leftover `install.lock` file alone does not block installation, so do not delete it.
+
+Let the active update finish. `nila settings --auto-update off` prevents future automatic launches but does not cancel the current installer. If an interrupted update remains stuck, save your work and restart Windows before retrying the official one-command installer. It rechecks prerequisites and preserves the separate data directory. Do not run several installers at once.
+
+Use `nila --version` on older versions. New builds also accept `nila version`. Earlier builds interpreted `version` and the misspelling `updatw` as chat prompts, which could start an automatic update; an Ollama connection error from those commands was not a version-check failure.

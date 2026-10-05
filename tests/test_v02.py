@@ -143,3 +143,20 @@ def test_update_failure_reports_policy_and_retains_installation(store,monkeypatc
     assert (store.root/'current.txt').read_text()==old
     assert message in (store.root/'last-update.log').read_text()
     assert not list(store.root.glob('nila-update-*.ps1'))
+
+
+def test_update_lock_contention_is_busy(store):
+    result=updater.update_failure('Another Nila installation/update is running. Try again later.',store.root)
+    assert result['status']=='busy' and 'Do not delete install.lock' in result['message']
+
+def test_version_and_update_typo_never_start_chat(monkeypatch,capsys):
+    import sys
+    from nila import cli
+    def unexpected():raise AssertionError('Version/typo must not open storage or start chat/update')
+    monkeypatch.setattr(cli,'Store',unexpected)
+    monkeypatch.setattr(sys,'argv',['nila','version'])
+    with pytest.raises(SystemExit) as e:cli.main()
+    assert e.value.code==0 and 'Nila 0.5.0' in capsys.readouterr().out
+    monkeypatch.setattr(sys,'argv',['nila','updatw'])
+    with pytest.raises(SystemExit) as e:cli.main()
+    assert e.value.code==2 and 'nila update' in capsys.readouterr().err

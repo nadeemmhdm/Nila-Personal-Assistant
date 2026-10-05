@@ -199,6 +199,8 @@ def main():
         extract();return
     if hasattr(sys.stdout,"reconfigure"): sys.stdout.reconfigure(encoding="utf-8")
     argv=sys.argv[1:]
+    if argv == ["version"]:argv=["--version"]
+    if argv and argv[0]=="updatw":parser().error("Unknown command updatw. Use: nila update")
     if argv and argv[0] in {'recover'}:
         print('Notes, tasks and automation features have been removed.',file=sys.stderr);raise SystemExit(1)
     known={'ask','chat','web','worker','update','service','pull','doctor','models','model','history','delete','export','settings','memory','gemini','learn','knowledge','feedback'}

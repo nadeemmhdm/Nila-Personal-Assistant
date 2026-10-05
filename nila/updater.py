@@ -40,6 +40,8 @@ def check():
 
 def update_failure(log, root):
     """Report an OS policy denial without bypassing executable validation."""
+    if 'another nila installation/update is running' in log.lower():
+        return {'status':'busy','message':'Another Nila installation/update is running. Let it finish before retrying. Do not delete install.lock.', 'log_path':str(root/'last-update.log')}
     blocked = any(marker in log.lower() for marker in (
         'nila-021', 'application control policy has blocked',
         'blocked by group policy', 'blocked by your system administrator',

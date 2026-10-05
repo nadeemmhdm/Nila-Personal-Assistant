@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Report installer-lock contention as busy, add `nila version` as an alias for `--version`, and catch the `updatw` typo before it can start chat or automatic updating.
+
 - Report Windows executable policy denials as NILA-021, include the update log path and preserve mandatory binary validation. Document that the device trust policy must accept the build before activation.
 
 - Fix Windows CLI smoke-test decoding: explicitly use UTF-8 for subprocess input/output so the Unicode Nila banner is not decoded as CP1252.
