@@ -38,6 +38,21 @@ def check():
     except (httpx.HTTPError,ValueError,KeyError):
         return state|{'online':False,'available':False,'message':'Update check unavailable. Offline features remain available.'}
 
+def update_failure(log, root):
+    """Report an OS policy denial without bypassing executable validation."""
+    blocked = any(marker in log.lower() for marker in (
+        'nila-021', 'application control policy has blocked',
+        'blocked by group policy', 'blocked by your system administrator',
+    ))
+    result = {'status':'failed','log_path':str(root/'last-update.log')}
+    if blocked:
+        return result | {'error_code':'NILA-021','message':
+            'NILA-021: Windows application-control policy blocked the new executable. '
+            'The update was not activated. Ask the device/policy administrator to review '
+            'CodeIntegrity events and approve a trusted build, or use a properly signed '
+            'distribution accepted by that policy. Nila does not disable security controls.'}
+    return result | {'message':'Update build failed; current installation retained. See last-update.log in NilaApp.'}
+
 def apply_update():
     if not _lock.acquire(blocking=False): return {'status':'busy','message':'Update already running.'}
     try:
@@ -59,7 +74,7 @@ def apply_update():
             result=subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',name,'-Commit',sha,'-UpdateOnly'],capture_output=True,text=True,timeout=1800,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
             log=(result.stdout+'\n'+result.stderr)[-16000:]
             (root/'last-update.log').write_text(log,encoding='utf-8')
-            if result.returncode: return {'status':'failed','message':'Update build failed; current installation retained. See last-update.log in NilaApp.'}
+            if result.returncode: return update_failure(log,root)
             return {'status':'updated','message':'Update installed. Restart Nila to use it.','commit':sha}
         finally: Path(name).unlink(missing_ok=True)
     except (httpx.HTTPError,ValueError,KeyError,OSError,subprocess.TimeoutExpired,RuntimeError):

@@ -21,6 +21,16 @@ function Get-NilaBuildPaths([string]$AppRoot) {
     if ($venvPath.Length -gt 120) { throw 'Nila build path is too long. Use a shorter LOCALAPPDATA directory for this installation.' }
     return @{ Stage = $stagePath; Source = (Join-Path $stagePath 's'); Venv = $venvPath }
 }
+function Test-NilaExecutable([string]$Executable) {
+    try { & $Executable --version }
+    catch {
+        if ($_.Exception.Message -match '(?i)application control policy has blocked|blocked by group policy|blocked by your system administrator') {
+            throw 'NILA-021: Windows application-control policy blocked nila.exe. Update activation stopped. Have the device/policy administrator review CodeIntegrity events and approve a trusted build, or obtain a signed distribution accepted by the policy. Nila will not bypass this block.'
+        }
+        throw
+    }
+    if ($LASTEXITCODE -ne 0) { throw 'New binary did not start. Update activation stopped.' }
+}
 function Refresh-Path {
     $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
 }
@@ -133,8 +143,7 @@ try {
                 } finally { Pop-Location }
                 & $BuildPython scripts/build_binary.py
                 if ($LASTEXITCODE -ne 0) { throw 'Nila binary build failed.' }
-                & .\dist\nila.exe --version
-                if ($LASTEXITCODE -ne 0) { throw 'New binary did not start.' }
+                Test-NilaExecutable (Join-Path $Source 'dist\nila.exe')
                 New-Item -ItemType Directory -Force $Target | Out-Null
                 Copy-Item .\dist\nila.exe (Join-Path $Target 'nila.exe')
                 Copy-Item scripts\launcher.ps1 (Join-Path $Root 'launcher.ps1')
@@ -142,8 +151,7 @@ try {
             } finally { Pop-Location }
         } finally { if ($Stage -and (Test-Path $Stage)) { Remove-Item $Stage -Recurse -Force } }
     }
-    & (Join-Path $Target 'nila.exe') --version
-    if ($LASTEXITCODE -ne 0) { throw 'Staged binary validation failed. Previous version retained.' }
+    Test-NilaExecutable (Join-Path $Target 'nila.exe')
     $Pointer = Join-Path $Root 'current.txt'
     $Pending = Join-Path $Root 'current.pending'
     [IO.File]::WriteAllText($Pending,$Commit)

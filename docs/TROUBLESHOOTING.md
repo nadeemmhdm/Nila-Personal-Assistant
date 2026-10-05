@@ -70,3 +70,13 @@ Thumbs express preference; use regeneration instructions when you want a specifi
 - **Suggested questions are absent:** they are optional local generations and may be skipped if Ollama is busy, times out or returns invalid JSON. Chat continues normally.
 - **Old automation stopped:** v0.5 retires scheduled work; the login worker now hosts the optional Telegram connection. Old data is retained, not executed.
 - **Temporary chat remains after closing a tab:** use New conversation or delete/close the temporary conversation, or stop the server. A tab closing alone does not guarantee RAM disposal.
+
+## NILA-021 — Windows Application Control blocked nila.exe
+
+If the log says `Build complete!` followed by `An Application Control policy has blocked this file`, compilation succeeded but Windows refused to launch the binary. This is not the MAX_PATH dependency error. The executable smoke check must pass before the active installation changes.
+
+Nila currently builds unsigned executables locally. Identify the policy through Windows Security and Event Viewer → Applications and Services Logs → Microsoft → Windows → CodeIntegrity → Operational. Smart App Control and organization-managed App Control policies can require different remedies. Have the authorized policy administrator review the block and an approved build/signing process. Smart App Control does not provide an individual-app bypass.
+
+Nila does not disable protection, add antivirus exclusions, skip smoke checks or silently switch to another execution route. Repeated rebuilding does not itself resolve a trust-policy denial. A trusted signed distribution requires a legitimate signing identity and policy acceptance; a self-signed build is not automatically trusted. The older installed updater may still show its generic message; inspect `last-update.log` for the original denial.
+
+References: [Microsoft App Control troubleshooting](https://learn.microsoft.com/en-us/windows/security/application-security/application-control/app-control-for-business/operations/appcontrol-debugging-and-troubleshooting), [Smart App Control FAQ](https://support.microsoft.com/en-us/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions).

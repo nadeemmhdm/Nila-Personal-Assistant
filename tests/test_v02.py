@@ -121,3 +121,25 @@ def test_update_rejects_modified_installer(store,monkeypatch):
     monkeypatch.setattr(updater.httpx,'Client',lambda **kw:original(transport=httpx.MockTransport(handler),**kw))
     assert updater.apply_update()['status']=='failed'
     assert not (store.root/'current.txt').exists()
+
+
+@pytest.mark.parametrize('blocked', [True,False])
+def test_update_failure_reports_policy_and_retains_installation(store,monkeypatch,blocked):
+    import hashlib,subprocess
+    original=httpx.Client;data=b'# verified installer fixture'
+    old='a'*40;new='b'*40
+    (store.root/'current.txt').write_text(old)
+    monkeypatch.setattr(updater,'check',lambda:{'managed':True,'online':True,'available':True,'latest':new,'root':str(store.root)})
+    def handler(r):
+        if '/contents/' in str(r.url):
+            return httpx.Response(200,json={'sha':hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()})
+        return httpx.Response(200,content=data)
+    monkeypatch.setattr(updater.httpx,'Client',lambda **kw:original(transport=httpx.MockTransport(handler),**kw))
+    message="Program 'nila.exe' failed to run: An Application Control policy has blocked this file" if blocked else 'Python dependency installation failed.'
+    monkeypatch.setattr(updater.subprocess,'run',lambda *a,**kw:subprocess.CompletedProcess(a[0],1,'Build complete!',message))
+    result=updater.apply_update()
+    assert result['status']=='failed'
+    assert (result.get('error_code')=='NILA-021') is blocked
+    assert (store.root/'current.txt').read_text()==old
+    assert message in (store.root/'last-update.log').read_text()
+    assert not list(store.root.glob('nila-update-*.ps1'))
