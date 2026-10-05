@@ -51,7 +51,8 @@ def test_recover_old_web_evidence_once_and_forget(tmp_path):
     with store.db() as db:db.execute('DELETE FROM web_knowledge')
     backfill(store);assert recall_web(store,'Grok founder')==('',[])
 
-def test_telegram_one_indicator_replaced_and_shared_model(tmp_path,monkeypatch):
+@pytest.mark.parametrize('mode',['fast','medium','current'])
+def test_telegram_one_indicator_replaced_and_shared_model(tmp_path,monkeypatch,mode):
     store=Store(tmp_path);tg.save(store,'123456:abcdefghijklmnopqrstuvwxyzABCDEF','123',True);calls=[]
     async def call(token,method,payload):calls.append((method,payload));return {'message_id':88}
     async def available():return [{'name':v} for v in mm.DEFAULT_PROFILES.values()]
@@ -61,9 +62,22 @@ def test_telegram_one_indicator_replaced_and_shared_model(tmp_path,monkeypatch):
         s.add_message(cid,'assistant','Answer text')
     monkeypatch.setattr(tg,'call',call);monkeypatch.setattr(tg,'reply',reply);monkeypatch.setattr(engine,'models',available)
     def event(text):return {'message':{'chat':{'type':'private','id':123},'from':{'id':123},'date':time.time(),'text':text}}
-    b=tg.Bridge(store);asyncio.run(b.handle(tg.config(store),event('/model fast')))
-    assert store.settings()['model']==mm.DEFAULT_PROFILES['fast'];calls.clear()
+    b=tg.Bridge(store);asyncio.run(b.handle(tg.config(store),event('/model '+mode)))
+    assert store.settings()['model']==mm.DEFAULT_PROFILES[mode];calls.clear()
     asyncio.run(b.handle(tg.config(store),event('Explain SQL')))
     assert len([x for x in calls if x[0]=='sendMessage'])==1
     assert calls[-1][0]=='editMessageText' and calls[-1][1]['text']=='Answer text'
     assert calls[-1][1]['message_id']==88
+
+@pytest.mark.parametrize('mode',['fast','medium','current'])
+def test_cli_profiles_share_persistent_selection(tmp_path,monkeypatch,capsys,mode):
+    import sys
+    from nila import cli
+    store=Store(tmp_path)
+    async def available():return [{'name':v} for v in mm.DEFAULT_PROFILES.values()]
+    monkeypatch.setattr(engine,'models',available)
+    monkeypatch.setattr(cli,'Store',lambda:store)
+    monkeypatch.setattr(sys,'argv',['nila','model','use',mode])
+    cli.main()
+    assert Store(tmp_path).settings()['model']==mm.DEFAULT_PROFILES[mode]
+    assert mm.DEFAULT_PROFILES[mode] in capsys.readouterr().out

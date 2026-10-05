@@ -40,8 +40,8 @@ def test_review_saves_and_reuses_relevant_knowledge(store,monkeypatch):
     assert labmod.knowledge_context(store,'volcano geology')==''
     from nila.engine import context
     cid=store.create_chat()['id'];store.add_message(cid,'user','Explain Python dictionaries')
-    assert 'Gemini-reviewed study notes' in context(store,cid,store.settings())[0]['content']
-    assert 'Gemini-reviewed study notes' not in context(store,cid,store.settings()|{'knowledge_enabled':False})[0]['content']
+    assert 'Python dictionaries map unique keys to values.' in context(store,cid,store.settings())[0]['content']
+    assert 'Python dictionaries map unique keys to values.' not in context(store,cid,store.settings()|{'knowledge_enabled':False})[0]['content']
 
 def test_revision_feedback_returns_to_local_model(store,monkeypatch):
     prompts=[];count=0
