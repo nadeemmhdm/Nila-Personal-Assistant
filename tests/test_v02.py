@@ -54,6 +54,7 @@ def test_profile_and_auto_memory_switches(store):
     assert 'Example Company' in context(store,cid,store.settings())[0]['content']
 
 def test_memory_requires_verbatim_evidence_and_filters_secrets(store,monkeypatch):
+    store.save_settings({"memory_review":False})
     original=httpx.AsyncClient;calls=[]
     def handler(r):
         calls.append(r)
@@ -93,16 +94,12 @@ def test_scheduler_pausing_preserves_disabled_state(store,monkeypatch):
     assert runs(store)[0]['status']=='cancelled'
     assert 'Partial response' in runs(store)[0]['output']
 
-def test_automation_api_validation_and_run_request(store):
+def test_removed_features_return_gone(store):
     c=TestClient(create_app(store))
-    data={'title':'Plan','prompt':'Make a study plan','kind':'ai','next_run':time.time()+500,'interval_minutes':0}
-    assert c.post('/api/automations',json=data|{'kind':'shell'}).status_code==422
-    assert c.post('/api/automations',json=data|{'interval_minutes':1}).status_code==422
-    iid=c.post('/api/automations',json=data).json()['id']
-    assert c.post('/api/automations/'+iid+'/run').json()['status']=='queued'
-    assert c.post('/api/automations/'+iid+'/pause').status_code==200
-    assert not c.get('/api/automations').json()['jobs'][0]['enabled']
-    assert c.delete('/api/automations/'+iid).status_code==200
+    assert c.post('/api/automations',json={}).status_code==410
+    assert c.get('/api/items/notes').status_code==410
+    assert c.get('/api/items/tasks').status_code==410
+
 
 def test_update_checks_main_not_releases_and_handles_offline(monkeypatch):
     original=httpx.Client;urls=[]

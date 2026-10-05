@@ -92,7 +92,9 @@ def test_learning_both_http_payloads_exclude_all_private_context(store,monkeypat
     def handler(req):
         requests.append(req)
         if req.url.host=='127.0.0.1':return httpx.Response(200,text=json.dumps({'message':{'content':'Public answer'},'done':True})+'\n')
-        return httpx.Response(200,json={'candidates':[{'content':{'parts':[{'text':json.dumps({'verdict':'acceptable','feedback':'OK','lesson':'Public lesson'})}]}}]})
+        payload=json.loads(req.content)
+        value={'question':'What does the public topic mean?'} if 'question' in payload['generationConfig'].get('responseJsonSchema',{}).get('properties',{}) else {'verdict':'acceptable','feedback':'OK','lesson':'Public lesson'}
+        return httpx.Response(200,json={'candidates':[{'content':{'parts':[{'text':json.dumps(value)}]}}]})
     monkeypatch.setattr(httpx,'AsyncClient',lambda **kw:original(transport=httpx.MockTransport(handler),**kw))
     def forbidden(*args,**kw):raise AssertionError('Private store method accessed')
     for name in ('settings','chat','items','feedback_context'):monkeypatch.setattr(store,name,forbidden)
@@ -100,7 +102,7 @@ def test_learning_both_http_payloads_exclude_all_private_context(store,monkeypat
     config=learning.SessionConfig(topic='Public topic',local_model='llama3.2:1b',gemini_model='test',max_rounds=1,consent=True)
     iid=lab.create(config);asyncio.run(lab.run(iid))
     assert learning.session(store,iid)['status']=='completed'
-    assert len(requests)==2
+    assert len(requests)==3
     assert all('PRIVATE_' not in r.content.decode() for r in requests)
     assert all('fake-key' not in r.content.decode() for r in requests)
     with pytest.raises(ValueError):learning.SessionConfig(**config.model_dump(),include_memories=True)

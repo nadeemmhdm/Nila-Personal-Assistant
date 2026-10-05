@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0 — 2026-10-05
+
+- Redesigned chat composer, opposite-side bubbles, themes, collapsible Explore/History sidebar and inline notices.
+- Added contextual local follow-up questions, same-answer regeneration with optional instructions, branch preservation and thumbs-only feedback.
+- Added Rich CLI rendering/banner/status, thinking effort levels and installed model selection.
+- Automatic question-based Quick/Deep search with clickable sources; fixed composer refilling after answers.
+- Added projects, text/PDF attachments, source-context inspection, reviewed memory inbox and RAM-only temporary chats.
+- Added password-encrypted portable backup/restore, setup checks, compact view and managed Windows rollback.
+- Added encrypted, private-ID-restricted Telegram connection with opt-in personal context.
+- Learning Lab now starts with a Gemini question, then local answer and Gemini correction; isolated personal-data boundary retained.
+- Removed Notes, Tasks, written-feedback controls and scheduled automations from active use. Existing legacy data is retained.
+- Preserved short Windows build paths and main-commit updates.
+
+
 ## 0.4.0 — 2026-10-05
 
 - Fixed Windows dependency installation paths by flattening extracted source and using a short sibling virtual environment; added a Windows hook-install regression check.

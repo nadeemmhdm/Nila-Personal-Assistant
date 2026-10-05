@@ -16,16 +16,16 @@ def parser():
     ask = sub.add_parser("ask",help="Ask one question")
     ask.add_argument("prompt")
     ask.add_argument("--chat",help="Resume a conversation ID")
+    ask.add_argument("--temporary",action="store_true")
     ask.add_argument('--search',choices=['off','quick','deep'],default='off')
-    ask.add_argument('--query',help='Separate public web query; otherwise sends this prompt')
     ask.add_argument('--edit',type=int,help='Replace a user message ID in --chat, removing subsequent turns')
     feedback=sub.add_parser('feedback',help='Rate an answer locally; never sent to Gemini')
     feedback.add_argument('chat_id')
     feedback.add_argument('message_id',type=int)
     feedback.add_argument('rating',choices=['up','down','clear'])
-    feedback.add_argument('--reason',default='')
     chat = sub.add_parser("chat",help="Interactive conversation")
     chat.add_argument("--chat",help="Resume a conversation ID")
+    chat.add_argument("--temporary",action="store_true")
     web = sub.add_parser("web",help="Start the local web interface")
     web.add_argument("--port",type=int,default=8765)
     web.add_argument("--no-open",action="store_true")
@@ -56,15 +56,6 @@ def parser():
     svc.add_argument("action",choices=["start","stop","enable","disable"])
     pull = sub.add_parser("pull",help="Download a local Ollama model")
     pull.add_argument("model",nargs="?",default="llama3.2:1b")
-    auto = sub.add_parser("automation",help="Schedule and manage offline work")
-    auto.add_argument("action",choices=["list","add","edit","run","pause","remove","logs","draft"])
-    auto.add_argument("id",nargs="?")
-    auto.add_argument("--title",default="Local automation")
-    auto.add_argument("--prompt")
-    auto.add_argument("--kind",choices=["ai","brief","note","task"],default="ai")
-    auto.add_argument("--every",type=int,default=0,help="Repeat every N minutes (minimum 5), 0 for once")
-    auto.add_argument("--after",type=int,default=1,help="First run after N minutes")
-    auto.add_argument("--paused",action="store_true")
     sub.add_parser("doctor",help="Check Ollama, model, and storage")
     sub.add_parser("models",help="List installed Ollama models")
     model = sub.add_parser("model",help="Set the default model")
@@ -88,33 +79,62 @@ def parser():
     settings.add_argument("--course")
     settings.add_argument("--interests")
     settings.add_argument("--tone",choices=["Friendly","Professional","Concise"])
+    settings.add_argument("--thinking",choices=["low","medium","high"])
+    settings.add_argument("--memory-review",choices=["on","off"])
     settings.add_argument("--auto-memory",choices=["on","off"])
     settings.add_argument("--memory",choices=["on","off"])
     settings.add_argument("--auto-update",choices=["on","off"])
     settings.add_argument("--temperature",type=float)
     settings.add_argument("--context",type=int)
-    for kind in ["memory","notes","tasks"]:
+    for kind in ["memory"]:
         item = sub.add_parser(kind,help=f"Manage {kind}")
         item.add_argument("action",nargs="?",default="list",choices=["list","add","remove","edit","done"] if kind == "tasks" else ["list","add","remove","edit"])
         item.add_argument("value",nargs="?")
         item.add_argument("text",nargs="?")
+    from .workspace_cli import add_parsers
+    add_parsers(sub)
     return p
 
 async def answer(store,cid,prompt,search_mode="off",search_query=None,edit_message_id=None):
-    async for part in reply(store,cid,prompt,search_mode=search_mode,search_query=search_query,edit_message_id=edit_message_id):
-        print(part,end="",flush=True)
-    print()
+    from .terminal import render_reply
+    await render_reply(store,cid,prompt,search_mode=search_mode,search_query=search_query,edit_message_id=edit_message_id)
 
 async def interactive(store,cid):
     s = store.settings()
     search_mode="off"
-    print(f"\n{s['assistant_name']} · {s['model']} · local\nConversation: {cid}\nJust type your message and press Enter. No command needed per message.\n/help for shortcuts · /exit to quit\n")
+    from .terminal import banner,console,render_reply
+    banner()
+    console.print(f"[dim]Conversation: {cid}[/dim]")
     while True:
-        try: prompt = input("You › ").strip()
+        try: prompt = console.input("[bold cyan]You › [/]").strip()
         except EOFError: break
         if prompt == "/exit": break
         if prompt == "/help":
-            print('/new · /resume ID · /search off|quick|deep · /continue · /edit · /up · /down · /feedback TEXT · /model · /learn · /remember TEXT · /exit. Or just type a message.')
+            print('/new · /think low|medium|high · /attach FILE · /regenerate [instructions] · /resume ID · /search off|quick|deep · /continue · /edit · /up · /down · /model · /learn · /remember TEXT · /exit. Or just type a message.')
+            continue
+        if prompt.startswith('/think '):
+            level=prompt.split(maxsplit=1)[1]
+            if level not in {'low','medium','high'}:console.print('Choose low, medium or high.');continue
+            store.save_settings({'thinking_level':level});console.print('Thinking level: '+level);continue
+        if prompt.startswith('/attach '):
+            from pathlib import Path
+            from .workspace import ingest,attach
+            try:
+                path=Path(prompt[8:].strip().strip('"'))
+                if path.stat().st_size>5*1024*1024:raise ValueError('File limit: 5 MB')
+                iid=ingest(store,path.name,path.read_bytes())
+                with store.db() as db:ids=[r[0] for r in db.execute('SELECT document_id FROM chat_documents WHERE chat_id=?',(cid,))]
+                attach(store,cid,ids+[iid]);console.print('File attached. Ask your question.')
+            except (OSError,ValueError) as exc:console.print(str(exc))
+            continue
+        if prompt=='/regenerate'  or prompt.startswith('/regenerate '):
+            last=next((m for m in reversed(store.chat(cid)['messages']) if m['role']=='assistant'),None)
+            if not last:print('No answer to regenerate');continue
+            instruction=prompt[len('/regenerate'):].strip() or input('What should change? (optional): ').strip()
+            if len(instruction)>2000:print('Instruction limit: 2000 characters');continue
+            try:
+                await render_reply(store,cid,'Regenerate',regenerate_id=last['id'],instruction=instruction,learn_memory=False)
+            except (NilaError,RuntimeError) as exc:print(exc)
             continue
         if prompt.startswith('/search '):
             mode=prompt.split(maxsplit=1)[1]
@@ -127,10 +147,11 @@ async def interactive(store,cid):
                 target=prompt.split(maxsplit=1)[1];store.chat(target);cid=target;print('Resumed:',cid)
             except KeyError: print('Conversation not found')
             continue
-        if prompt in {'/up','/down'} or prompt.startswith('/feedback '):
+        if store.ephemeral and (prompt in {'/up','/down'} or prompt.startswith(('/feedback ','/remember '))):print('Temporary chats do not save feedback or memory.');continue
+        if prompt in {'/up','/down'}:
             latest=next((m for m in reversed(store.chat(cid)['messages']) if m['role']=='assistant'),None)
             if latest:
-                store.feedback(cid,latest['id'],1 if prompt=='/up' else -1,prompt[10:] if prompt.startswith('/feedback ') else '')
+                store.feedback(cid,latest['id'],1 if prompt=='/up' else -1,'')
                 print('Feedback saved locally. Future replies use it as guidance.')
             else: print('No answer to rate yet.')
             continue
@@ -152,6 +173,7 @@ async def interactive(store,cid):
                 print('Using',s['model'])
             except (NilaError,ValueError) as exc:print(exc)
             continue
+        if store.ephemeral and prompt=='/learn':print('Learning Lab is unavailable inside temporary chats.');continue
         if prompt == "/learn":
             try:await learning_wizard(store)
             except (RuntimeError,ValueError) as exc:print(exc)
@@ -167,14 +189,21 @@ async def interactive(store,cid):
             continue
         if not prompt: continue
         if len(prompt)>12000: print("Message limit: 12000 characters."); continue
-        print(f"{s['assistant_name']} › ",end="",flush=True)
+        console.print("[bold bright_magenta]Nila[/]")
         try: await answer(store,cid,prompt,search_mode=search_mode,edit_message_id=edit_id)
         except (NilaError, RuntimeError) as exc: print(f"\n{exc}")
 
 def main():
+    if sys.argv[1:]==['_extract_pdf']:
+        from .pdf_extract import main as extract
+        extract();return
     if hasattr(sys.stdout,"reconfigure"): sys.stdout.reconfigure(encoding="utf-8")
     argv=sys.argv[1:]
-    known={'ask','chat','web','worker','update','service','pull','automation','doctor','models','model','history','delete','export','settings','memory','notes','tasks','gemini','learn','knowledge','feedback'}
+    if argv and argv[0] in {'recover'}:
+        print('Notes, tasks and automation features have been removed.',file=sys.stderr);raise SystemExit(1)
+    known={'ask','chat','web','worker','update','service','pull','doctor','models','model','history','delete','export','settings','memory','gemini','learn','knowledge','feedback'}
+    from .workspace_cli import COMMANDS,execute
+    known |= COMMANDS
     if argv and not argv[0].startswith('-') and argv[0] not in known:
         argv=['ask',' '.join(argv)]
     args = parser().parse_args(argv)
@@ -182,7 +211,13 @@ def main():
     try:
         from .updater import start_auto_update
         if args.command in {None,"chat","ask","web"}: start_auto_update(store)
-        if args.command == "gemini":
+        if getattr(args,'temporary',False):
+            if getattr(args,'chat',None):raise ValueError('Temporary chats cannot resume saved history')
+            original=store;store=Store(ephemeral=True)
+            store.save_settings({k:v for k,v in original.settings().items() if k in {'assistant_name','model','language','temperature','num_ctx','thinking_level'}}|{'auto_memory':False,'memory_enabled':False,'knowledge_enabled':False,'auto_update':False})
+            store.acquire=original.acquire;store.release=original.release
+        if args.command in COMMANDS:execute(args,store)
+        elif args.command == "gemini":
             from .learning import save_key,delete_key,key,gemini_models
             if args.action=='setup':save_key(store,getpass.getpass('Gemini API key (hidden): '));print('Key saved encrypted. Use nila gemini models to check access.')
             elif args.action=='remove':delete_key(store);print('Key removed. Active sessions will stop.')
@@ -234,24 +269,6 @@ def main():
             from .extensions import pull_model,ModelPull
             model=ModelPull(model=args.model).model
             asyncio.run(pull_model(model,lambda d:print(d.get('status',''),flush=True)))
-        elif args.command == "automation":
-            import time
-            from .automation import Job,jobs,runs,save_job,remove_job,Scheduler
-            scheduler=Scheduler(store)
-            if args.action == 'list':print(json.dumps(jobs(store),indent=2,ensure_ascii=False))
-            elif args.action == 'logs':print(json.dumps(runs(store),indent=2,ensure_ascii=False))
-            elif args.action == 'draft':
-                from .extensions import draft_job
-                if not args.prompt:raise ValueError('Provide --prompt with your automation request')
-                print(json.dumps(asyncio.run(draft_job(store,args.prompt)),indent=2,ensure_ascii=False))
-            elif args.action in {'add','edit'}:
-                if not args.prompt:raise ValueError('Provide --prompt')
-                if args.action=='edit' and not args.id:raise ValueError('Provide automation ID')
-                print(save_job(store,Job(title=args.title,prompt=args.prompt,kind=args.kind,interval_minutes=args.every,next_run=time.time()+max(0,args.after)*60,enabled=not args.paused),args.id if args.action=='edit' else None))
-            elif not args.id:raise ValueError('Provide automation ID')
-            elif args.action == 'pause':scheduler.pause(args.id)
-            elif args.action == 'remove':remove_job(store,args.id)
-            elif args.action == 'run':print(json.dumps(asyncio.run(scheduler.run(args.id,force=True)),ensure_ascii=False))
         elif args.command == "web":
             if not 1024 <= args.port <= 65535: raise ValueError("Port must be 1024–65535")
             import uvicorn
@@ -262,14 +279,14 @@ def main():
                 timer.start()
             uvicorn.run(create_app(store),host="127.0.0.1",port=args.port,log_level="warning")
         elif args.command == "feedback":
-            store.feedback(args.chat_id,args.message_id,{'up':1,'down':-1,'clear':0}[args.rating],args.reason)
+            store.feedback(args.chat_id,args.message_id,{'up':1,'down':-1,'clear':0}[args.rating],'')
             print('Feedback saved locally.')
         elif args.command == "ask":
             prompt = args.prompt.strip()
             if not prompt or len(prompt)>12000: raise ValueError("Message must be 1–12000 characters")
             cid = args.chat or store.create_chat()["id"]
             if args.edit and not args.chat: raise ValueError("--edit requires --chat")
-            asyncio.run(answer(store,cid,prompt,search_mode=args.search,search_query=args.query,edit_message_id=args.edit))
+            asyncio.run(answer(store,cid,prompt,search_mode=args.search,edit_message_id=args.edit))
         elif args.command in {"chat",None}:
             cid = getattr(args,"chat",None) or store.create_chat()["id"]
             store.chat(cid)
@@ -297,8 +314,9 @@ def main():
             for key in ['description','position','completion_year','company','job_role','course','interests','tone','temperature']:
                 arg=getattr(args,key)
                 if arg is not None:values[key]=arg
+            if args.thinking is not None:values['thinking_level']=args.thinking
             if args.context is not None:values['num_ctx']=args.context
-            for arg,key in [('auto_memory','auto_memory'),('memory','memory_enabled'),('auto_update','auto_update'),('knowledge','knowledge_enabled')]:
+            for arg,key in [('memory_review','memory_review'),('auto_memory','auto_memory'),('memory','memory_enabled'),('auto_update','auto_update'),('knowledge','knowledge_enabled')]:
                 value=getattr(args,arg)
                 if value is not None:values[key]=value=='on'
             print(json.dumps(store.save_settings(Settings(**values).model_dump()),indent=2,ensure_ascii=False))
@@ -328,7 +346,7 @@ def main():
                 store.update_item(kind,args.value,content=args.text.strip())
     except KeyboardInterrupt:
         print("\nStopped.")
-    except (NilaError, RuntimeError, ValueError, KeyError) as exc:
+    except (NilaError, RuntimeError, ValueError, KeyError, OSError) as exc:
         print(str(exc),file=sys.stderr)
         raise SystemExit(1)
 

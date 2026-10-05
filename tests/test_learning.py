@@ -12,7 +12,9 @@ from nila import learning as labmod
 from nila.learning import SessionConfig,Review,LearningLab,save_key,session,knowledge
 
 @pytest.fixture
-def store(tmp_path):
+def store(tmp_path,monkeypatch):
+    async def question(*args):return "What are Python dictionaries?"
+    monkeypatch.setattr(labmod,"gemini_question",question)
     s=Store(tmp_path);labmod.ensure(s);save_key(s,'test-key-not-a-real-google-key');return s
 
 def config(**kw):return SessionConfig(topic='Python dictionaries',local_model='custom-model:latest',gemini_model='test-gemini',minutes=1,max_rounds=1,consent=True,**kw)
@@ -32,7 +34,7 @@ def test_review_saves_and_reuses_relevant_knowledge(store,monkeypatch):
     lab=LearningLab(store);iid=lab.create(config());asyncio.run(lab.run(iid))
     result=session(store,iid)
     assert result['status']=='completed'
-    assert [m['actor'] for m in result['messages']]==['question','ollama','gemini','system']
+    assert [m['actor'] for m in result['messages'] if m['actor']!='system']==['question','ollama','gemini']
     assert knowledge(store)[0]['enabled']==1
     assert 'unique keys' in labmod.knowledge_context(store,'How do Python dictionaries work?')
     assert labmod.knowledge_context(store,'volcano geology')==''

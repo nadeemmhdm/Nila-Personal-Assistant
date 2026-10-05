@@ -14,6 +14,7 @@ class Job(BaseModel):
     interval_minutes:int=Field(default=0,ge=0,le=525600)
     next_run:float=Field(gt=0)
     enabled:bool=True
+    missed_policy:Literal["ask","run","skip"]="ask"
     @field_validator('title','prompt')
     @classmethod
     def nonblank(cls,v):
@@ -26,7 +27,7 @@ class Job(BaseModel):
         return v
 
 def jobs(store):
-    with store.db() as db: return [store.decode(r,['title','prompt']) for r in db.execute('SELECT * FROM automations ORDER BY next_run')]
+    with store.db() as db: return [store.decode(r,['title','prompt']) for r in db.execute("SELECT a.*,COALESCE(p.policy,'ask') AS missed_policy,COALESCE(p.missed,0) AS missed FROM automations a LEFT JOIN job_policy p ON p.job_id=a.id ORDER BY next_run")]
 
 def save_job(store,job:Job,iid=None):
     iid=iid or str(uuid.uuid4())
@@ -35,6 +36,7 @@ def save_job(store,job:Job,iid=None):
         current=db.execute('SELECT running_until FROM automations WHERE id=?',(iid,)).fetchone()
         if current and current[0]>time.time(): raise ValueError('Stop the automation before editing it')
         db.execute('INSERT INTO automations VALUES (?,?,?,?,?,?,?,0,NULL) ON CONFLICT(id) DO UPDATE SET title=excluded.title,prompt=excluded.prompt,kind=excluded.kind,interval_minutes=excluded.interval_minutes,next_run=excluded.next_run,enabled=excluded.enabled',(iid,store.seal(job.title),store.seal(job.prompt),job.kind,job.interval_minutes,job.next_run,int(job.enabled)))
+        db.execute("INSERT INTO job_policy VALUES (?,?,0) ON CONFLICT(job_id) DO UPDATE SET policy=excluded.policy,missed=0",(iid,job.missed_policy))
     return iid
 
 def remove_job(store,iid):
@@ -57,6 +59,17 @@ class Scheduler:
             if not row: raise KeyError('Automation not found')
             if row['running_until']>now: return {'status':'busy'}
             if not force and (not row['enabled'] or row['next_run']>now): return {'status':'skipped'}
+            policy=db.execute('SELECT policy FROM job_policy WHERE job_id=?',(iid,)).fetchone()
+            policy=policy[0] if policy else 'ask'
+            if not force and now-row['next_run']>300 and policy!='run':
+                if policy=='ask':
+                    db.execute('INSERT INTO job_policy VALUES (?, ?, 1) ON CONFLICT(job_id) DO UPDATE SET missed=1',(iid,policy))
+                    db.execute('UPDATE automations SET enabled=0 WHERE id=?',(iid,))
+                    return {'status':'needs_decision'}
+                db.execute('UPDATE automations SET next_run=?,enabled=? WHERE id=?',(now+max(60,row['interval_minutes']*60),int(bool(row['interval_minutes'])),iid))
+                db.execute('INSERT INTO runs VALUES (?,?,?,?,?)',(rid,iid,now,'skipped',store.seal('Missed occurrence skipped by recovery policy.')))
+                return {'status':'skipped'}
+            db.execute('UPDATE job_policy SET missed=0 WHERE job_id=?',(iid,))
             job=store.decode(row,['title','prompt'])
             db.execute("UPDATE runs SET status='interrupted',output=? WHERE automation_id=? AND status='running'",(store.seal('Previous worker stopped unexpectedly.'),iid))
             db.execute('UPDATE automations SET running_until=?,claim=? WHERE id=?',(now+720,claim,iid))

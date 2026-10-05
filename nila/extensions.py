@@ -50,7 +50,7 @@ def service(action):
     if action not in args: raise ValueError('Unknown worker action')
     result=subprocess.run(['schtasks.exe',*args[action],'/TN','Nila Personal Assistant'],capture_output=True,text=True,timeout=15,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     if result.returncode: raise ValueError('Windows task control failed. Run the installer to register the login task, or run nila worker manually.')
-    return {'message':'Background task '+action+' request completed. The Web scheduler remains active while this window is open.'}
+    return {'message':'Background task '+action+' request completed. Telegram also connects while the Web server is running.'}
 
 def register(app,store,scheduler):
     maintenance={'update':{'status':'idle'},'pull':{'status':'idle'}}
@@ -64,7 +64,7 @@ def register(app,store,scheduler):
         except ValueError as exc:raise HTTPException(400,str(exc))
 
     @app.get('/api/system')
-    async def system():return (await diagnostics(store))|{'web_scheduler':True,'maintenance':maintenance}
+    async def system():return (await diagnostics(store))|{'telegram_worker':True,'maintenance':maintenance}
     @app.get('/api/update')
     async def check_update():return await asyncio.to_thread(updater.check)
     @app.post('/api/update')
@@ -83,31 +83,3 @@ def register(app,store,scheduler):
                 maintenance['pull']['status']='complete'
             except Exception:maintenance['pull']={'status':'failed','message':'Model download failed. Check Ollama and internet access; retry to resume.'}
         launch(work());return maintenance['pull']
-    @app.get('/api/automations')
-    def list_jobs():return {'jobs':jobs(store),'runs':runs(store),'worker':worker_status(store)}
-    @app.post('/api/automations/draft')
-    async def draft(value:Draft):
-        try:return await draft_job(store,value.instruction)
-        except Exception:raise HTTPException(400,'Could not draft this automation. Check Ollama or fill the form manually.')
-    @app.post('/api/automations')
-    def create(value:Job):return {'id':save_job(store,value)}
-    @app.put('/api/automations/{iid}')
-    def update(iid:str,value:Job):
-        try:return {'id':save_job(store,value,iid)}
-        except ValueError as exc:raise HTTPException(409,str(exc))
-    @app.delete('/api/automations/{iid}')
-    def delete(iid:str):
-        try:remove_job(store,iid)
-        except ValueError as exc:raise HTTPException(409,str(exc))
-        return {'ok':True}
-    @app.post('/api/automations/{iid}/run')
-    async def run(iid:str):
-        # Queue it in persistent storage, so API disconnects do not lose the request.
-        with store.db() as db:
-            row=db.execute('SELECT running_until FROM automations WHERE id=?',(iid,)).fetchone()
-            if not row:raise HTTPException(404,'Automation not found')
-            if row[0]>time.time():raise HTTPException(409,'Automation already running')
-            db.execute('UPDATE automations SET next_run=?,enabled=1 WHERE id=?',(time.time(),iid))
-        return {'status':'queued'}
-    @app.post('/api/automations/{iid}/pause')
-    async def pause(iid:str):scheduler.pause(iid);return {'status':'paused'}

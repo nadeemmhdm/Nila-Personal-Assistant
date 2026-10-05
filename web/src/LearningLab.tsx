@@ -1,3 +1,4 @@
+import {useInlineConfirm} from './InlineConfirm';
 import React, { useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -32,6 +33,7 @@ async function api<T = any>(
   return d;
 }
 export function LearningLab() {
+  const {ask,confirmation}=useInlineConfirm();
   const [key, setKey] = useState(""),
     [configured, setConfigured] = useState(false),
     [geminiModels, setGeminiModels] = useState<any[]>([]),
@@ -110,7 +112,7 @@ export function LearningLab() {
     }
   }
   async function removeKey() {
-    if (!confirm("Remove the Gemini key and stop active learning sessions?"))
+    if (!(await ask("Remove the Gemini key and stop active learning sessions?")))
       return;
     try {
       await api("/learning/key", "DELETE");
@@ -170,7 +172,7 @@ export function LearningLab() {
     }
   }
   async function removeSession(id: string) {
-    if (!confirm("Delete this transcript and all lessons saved from it?"))
+    if (!(await ask("Delete this transcript and all lessons saved from it?")))
       return;
     try {
       await api("/learning/sessions/" + id, "DELETE");
@@ -225,7 +227,7 @@ export function LearningLab() {
     }
   }
   async function forget(id: string) {
-    if (!confirm("Delete this learned lesson?")) return;
+    if (!(await ask("Delete this learned lesson?"))) return;
     try {
       await api("/learning/knowledge/" + id, "DELETE");
       await refresh();
@@ -236,11 +238,11 @@ export function LearningLab() {
   const running = history.find((s) => s.status === "running");
   return (
     <div className="page-scroll">
-      <section className="settings-page lab-page">
+      <section className="settings-page lab-page">{confirmation}
         <div className="eyebrow">TWO MODELS. A VISIBLE CONVERSATION.</div>
         <h1>Learn, review, improve.</h1>
         <p>
-          Ollama explains. Gemini reviews. Ollama revises mistakes. Save
+          Gemini asks. Nila answers locally. Gemini reviews and teaches corrections. Save
           reviewed study notes for relevant future chats—this does not change
           model weights, and Gemini can also be wrong.
         </p>

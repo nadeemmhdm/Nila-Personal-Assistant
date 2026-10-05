@@ -173,7 +173,7 @@ try {
                 $options = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
                 Register-ScheduledTask -TaskName 'Nila Personal Assistant' -Action $action -Trigger $trigger -Principal $principal -Settings $options -Force | Out-Null
                 Start-ScheduledTask -TaskName 'Nila Personal Assistant'
-            } catch { Write-Warning 'Automatic startup could not be registered. Run nila worker to enable scheduled tasks.' }
+            } catch { Write-Warning 'Automatic startup could not be registered. Run nila worker for the optional Telegram connection.' }
         }
     }
     Write-Host 'Nila is ready. Open a new terminal: nila | nila web | nila doctor'

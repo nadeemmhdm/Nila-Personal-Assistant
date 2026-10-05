@@ -28,6 +28,9 @@ async def learn(store,text):
             if not re.search(r'\b(I|my|I’m|I\'m)\b|ഞാൻ|എന്റെ|എനിക്ക്',evidence,re.I): continue
             if SENSITIVE.search(value+' '+evidence): continue
             content=category.title()+': '+value
-            if store.add_item('memories',content,source='automatic'): saved.append(content)
+            if settings.get('memory_review',True):
+                from .workspace import suggest_memory
+                if suggest_memory(store,content): saved.append(content)
+            elif store.add_item('memories',content,source='automatic'): saved.append(content)
         return saved
     except (httpx.HTTPError,TimeoutError,ValueError,KeyError,TypeError,AttributeError): return []

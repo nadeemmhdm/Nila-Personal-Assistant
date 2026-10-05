@@ -65,6 +65,7 @@ def mock_ollama(monkeypatch, missing=False, broken=False):
     original=httpx.AsyncClient
     seen=[]
     def handler(request):
+        if request.url.path=='/api/show':return httpx.Response(200,json={'capabilities':[]})
         if request.url.path=='/api/tags': return httpx.Response(200,json={'models':[] if missing else [{'name':'llama3.2:1b'}]})
         seen.append(json.loads(request.content))
         lines=[{'message':{'content':'Hello '},'done':False},{'message':{'content':'Nadeem.'},'done':False}]

@@ -4,23 +4,23 @@ Learning Lab lets a local Ollama text model discuss a topic with a Gemini review
 
 ## Conversation cycle
 
-1. The local model answers a question about the supplied topic and description.
+1. Gemini asks an opening question about the supplied topic and description; then the local model answers.
 2. Gemini assesses that answer and returns an `acceptable`, `revise` or `uncertain` review.
 3. If revision is needed, the next local turn receives the previous answer and feedback and explains the correction.
 4. After an acceptable review, a short lesson may be saved and the models move to a related question.
 
-The user sees both sides. Web transcripts refresh while local tokens arrive; completed Gemini reviews appear as a separate turn. CLI output prints completed turns and preserves partial output on cancellation. These are task answers and reviews, not private model reasoning traces.
+The user sees both sides. Web transcripts refresh while local tokens arrive; Gemini opening questions and completed reviews appear as separate turns, with explicit waiting/error status. CLI output prints completed turns and preserves partial output on cancellation. These are task answers and reviews, not private model reasoning traces.
 
 ## Timing and controls
 
 - Default: 15 minutes, at most 10 rounds.
 - Allowed: 1–60 minutes and 1–40 rounds.
-- One Gemini request per round, with a 12-second inter-round delay.
+- One initial Gemini question request plus one review request per round, with a 12-second inter-round delay.
 - Stop cancels in-flight work; the database stop flag is checked approximately every half-second.
 - Time limit includes model requests and waits. Slow models may finish fewer rounds.
 - Quota/authentication/network/invalid-review errors end the session rather than causing repeated billable attempts.
 - Closing the browser tab alone does not stop a server-hosted session. Use Stop or stop the hosting Nila process. A crashed process leaves an interrupted transcript; it is not resumed automatically.
-- Only one lab session runs at a time. It reserves local generation; ordinary chat/AI automation may report busy until it finishes.
+- Only one lab session runs at a time. It reserves local generation; ordinary chat may report busy until it finishes.
 
 ## What learning means
 

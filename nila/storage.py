@@ -5,19 +5,26 @@ import os
 import sqlite3
 import time
 import uuid
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 from platformdirs import user_data_dir
 from .vault import Vault, PREFIX
 
-DEFAULTS = {'assistant_name':'Nila','user_name':'','model':'llama3.2:1b','language':'Auto','temperature':.7,'num_ctx':2048,'memory_enabled':True,'auto_memory':True,'auto_update':True,'description':'','position':'Other','completion_year':'','company':'','job_role':'','knowledge_enabled':True,'course':'','interests':'','tone':'Friendly'}
+DEFAULTS = {'assistant_name':'Nila','user_name':'','model':'llama3.2:1b','language':'Auto','temperature':.7,'num_ctx':2048,'memory_enabled':True,'auto_memory':True,'auto_update':True,'description':'','position':'Other','completion_year':'','company':'','job_role':'','knowledge_enabled':True,'course':'','interests':'','tone':'Friendly','memory_review':True,'setup_complete':False,'thinking_level':'medium'}
 
 class Store:
-    def __init__(self,root=None):
+    def __init__(self,root=None,ephemeral=False):
         self.root=Path(root or os.environ.get('NILA_DATA_DIR') or user_data_dir('Nila',appauthor=False))
-        self.root.mkdir(parents=True,exist_ok=True)
-        if os.name!='nt': self.root.chmod(0o700)
-        self.vault=Vault(self.root)
+        self.ephemeral=ephemeral
+        if ephemeral:
+            from cryptography.fernet import Fernet
+            self.vault=object.__new__(Vault);self.vault.fernet=Fernet(Fernet.generate_key())
+            self._ram=sqlite3.connect(':memory:',check_same_thread=False);self._ram_lock=threading.RLock()
+        else:
+            self.root.mkdir(parents=True,exist_ok=True)
+            if os.name!='nt': self.root.chmod(0o700)
+            self.vault=Vault(self.root)
         self.path=self.root/'nila.db'
         with self.db() as db:
             db.executescript('''
@@ -48,11 +55,19 @@ class Store:
         if migrated:
             with self.db() as db: db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
             with sqlite3.connect(self.path) as db: db.execute('VACUUM')
-        if os.name!='nt': self.path.chmod(0o600)
+        if os.name!='nt' and not ephemeral: self.path.chmod(0o600)
+        from .workspace import ensure
+        ensure(self)
     def seal(self,v): return self.vault.seal(v)
     def open(self,v): return self.vault.open(v)
     @contextmanager
     def db(self):
+        if self.ephemeral:
+            with self._ram_lock:
+                self._ram.row_factory=sqlite3.Row
+                self._ram.execute('PRAGMA foreign_keys=ON')
+                with self._ram: yield self._ram
+            return
         db=sqlite3.connect(self.path,timeout=10)
         db.row_factory=sqlite3.Row
         db.execute('PRAGMA foreign_keys=ON')
@@ -82,10 +97,11 @@ class Store:
             return self.decode(row,['title'])|{'messages':[self.decode(r,['content']) for r in db.execute('SELECT messages.*,COALESCE(feedback.rating,0) AS rating FROM messages LEFT JOIN feedback ON feedback.message_id=messages.id WHERE chat_id=? ORDER BY messages.id',(cid,))]}
     def add_message(self,cid,role,content,status='complete'):
         with self.db() as db:
-            db.execute('INSERT INTO messages(chat_id,role,content,status) VALUES (?,?,?,?)',(cid,role,self.seal(content),status))
+            mid=db.execute('INSERT INTO messages(chat_id,role,content,status) VALUES (?,?,?,?)',(cid,role,self.seal(content),status)).lastrowid
             db.execute('UPDATE chats SET updated=? WHERE id=?',(time.time(),cid))
             count=db.execute("SELECT COUNT(*) FROM messages WHERE chat_id=? AND role='user'",(cid,)).fetchone()[0]
             if role=='user' and count==1: db.execute('UPDATE chats SET title=? WHERE id=?',(self.seal(content[:65]),cid))
+            return mid
     def delete_chat(self,cid):
         with self.db() as db: db.execute('DELETE FROM chats WHERE id=?',(cid,))
     def items(self,kind):

@@ -14,13 +14,13 @@ Use a separate test data directory via `NILA_DATA_DIR`. Never commit a personal 
 | --- | --- |
 | `nila/storage.py`, `vault.py` | Database, encryption, migration and shared state |
 | `nila/engine.py`, `memory.py` | Ollama streaming, profile context and evidence-checked memory |
-| `nila/automation.py`, `worker.py` | Durable schedules, claims, run history and background worker |
+| `nila/telegram_bot.py`, `worker.py` | Private Telegram access, polling ownership and background worker |
 | `nila/extensions.py`, `server.py` | Local API, maintenance and Web lifecycle |
 | `nila/cli.py` | Terminal interface over the same services |
 | `nila/learning.py`, `learning_api.py` | Protected Gemini connection, timed review sessions, transcript and retrieved study notes |
 | `nila/updater.py` | Fixed-upstream commit checks and update launch |
 | `scripts/install.ps1`, `launcher.ps1` | Staged Windows installer and stable launcher |
-| `web/src` | React interface and shared settings/automation controls |
+| `web/src` | React interface and shared settings and conversation controls |
 
 ## Before opening a pull request
 
@@ -35,7 +35,7 @@ Windows installer or DPAPI changes need Windows testing. A Linux unit test or Po
 
 ## Security and model behavior
 
-Model output is data, not trusted executable instructions. Do not add arbitrary shell execution, expose loopback services publicly, weaken origin checks, or bypass update integrity checks. New automation actions must have explicit bounded schemas and user-visible controls. Memory changes must preserve user review, deletion and off switches.
+Model output is data, not trusted executable instructions. Do not add arbitrary shell execution, expose loopback services publicly, weaken origin checks, or bypass update integrity checks. Do not reactivate retired schedulers or outbound capabilities without explicit product scope. Memory changes must preserve user review, deletion and off switches.
 
 See [SECURITY.md](SECURITY.md) for private reporting guidance. Keep pull requests focused, preserve existing user data, and avoid unrelated refactors.
 
@@ -46,3 +46,7 @@ Gemini tests must use simulated responses; never put live keys in fixtures or CI
 Do not pass Store, personal prompts, profile, feedback retrieval or chat memory to a cloud-review client. Learning Lab HTTP payload tests must retain sentinel coverage for both its local and Gemini requests. Search must remain opt-in and derive queries only from explicit current input; no model-generated private-context search queries. Keep raw HTML disabled in the renderer.
 
 Run `python -m pytest -q`, `npm ci --prefix web`, and `npm run build --prefix web`. Windows CI additionally parses installer scripts and runs `tests/windows_paths.ps1` to install the dependency that triggered the reported path-length error inside the actual compact build-path layout. Binary packaging must collect DDGS dynamic backend modules. Use simulated providers for deterministic privacy and lifecycle tests; label any live-provider verification separately.
+
+## v0.5 regression coverage
+
+Cover same-message regeneration, cancellation preserving original answers, temporary RAM isolation, project/document separation, encrypted backup validation, Gemini-first sequencing, contextual follow-up cancellation, thinking capability detection and Telegram sender authorization/token masking. Use simulated providers; distinguish these from live integration checks.

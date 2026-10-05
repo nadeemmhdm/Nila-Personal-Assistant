@@ -85,3 +85,29 @@ def start_auto_update(store):
         with open(root/'auto-update-launch.log','a',encoding='utf-8') as log:
             subprocess.Popen([sys.executable,'update','--auto'],stdin=subprocess.DEVNULL,stdout=log,stderr=log,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0)|getattr(subprocess,'DETACHED_PROCESS',0),close_fds=True)
     except (OSError,ValueError):pass
+
+def rollback(store):
+    """Select a previously installed binary under the same installer lock. No network."""
+    root=install_root()
+    if not root:raise ValueError('Rollback requires a managed Windows installation')
+    # PowerShell holds the same Windows file-share lock used by install.ps1.
+    script=r'''
+$ErrorActionPreference='Stop'
+$root=Join-Path $env:LOCALAPPDATA 'NilaApp'
+$lock=[IO.File]::Open((Join-Path $root 'install.lock'),'OpenOrCreate','ReadWrite','None')
+try {
+  $previous=(Get-Content (Join-Path $root 'previous.txt') -Raw).Trim()
+  if ($previous -notmatch '^[a-f0-9]{40}$') { throw 'Invalid previous installation' }
+  $binary=Join-Path $root "versions\$previous\nila.exe"
+  if (-not (Test-Path $binary)) { throw 'Previous binary is unavailable' }
+  & $binary --version | Out-Null
+  if ($LASTEXITCODE) { throw 'Previous binary failed its smoke check' }
+  $pending=Join-Path $root 'rollback.pending'
+  [IO.File]::WriteAllText($pending,$previous)
+  [IO.File]::Replace($pending,(Join-Path $root 'current.txt'),(Join-Path $root 'previous.txt'))
+} finally { $lock.Dispose() }
+'''
+    result=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',script],capture_output=True,text=True,timeout=30,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+    if result.returncode:raise ValueError('Rollback failed. An update may be running or the previous binary is unavailable.')
+    store.save_settings({'auto_update':False})
+    return {'message':'Previous installation selected. Restart Nila and its worker. Automatic updates are paused until you re-enable them.'}

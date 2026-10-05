@@ -1,3 +1,4 @@
+import {useInlineConfirm} from './InlineConfirm';
 import React, { useEffect, useState } from "react";
 import {
   Plus,
@@ -39,6 +40,7 @@ type Job = {
   next_run: number;
   enabled: boolean | number;
   running_until?: number;
+  missed_policy?: string;
 };
 const fresh = (): Job => ({
   title: "",
@@ -47,6 +49,7 @@ const fresh = (): Job => ({
   interval_minutes: 0,
   next_run: Date.now() / 1000 + 3600,
   enabled: true,
+  missed_policy: "ask",
 });
 function localTime(epoch: number) {
   const d = new Date(epoch * 1000);
@@ -54,285 +57,8 @@ function localTime(epoch: number) {
     .toISOString()
     .slice(0, 16);
 }
-export function Automations() {
-  const [data, setData] = useState<{ jobs: Job[]; runs: any[]; worker: any }>({
-      jobs: [],
-      runs: [],
-      worker: {},
-    }),
-    [draft, setDraft] = useState<Job>(fresh),
-    [instruction, setInstruction] = useState(""),
-    [loading, setLoading] = useState(false),
-    [error, setError] = useState(""),
-    [info, setInfo] = useState("");
-  const fail = (e: unknown) =>
-    setError(e instanceof Error ? e.message : String(e));
-  const refresh = () => api("/automations").then(setData).catch(fail);
-  useEffect(() => {
-    void refresh();
-    const id = setInterval(refresh, 4000);
-    return () => clearInterval(id);
-  }, []);
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    try {
-      await api(
-        "/automations" + (draft.id ? "/" + draft.id : ""),
-        draft.id ? "PUT" : "POST",
-        { ...draft, enabled: !!draft.enabled },
-      );
-      setDraft(fresh());
-      setInfo("Automation saved. Results appear below.");
-      await refresh();
-    } catch (e) {
-      fail(e);
-    }
-  }
-  async function action(id: string, action: string) {
-    setError("");
-    try {
-      if (action === "delete") {
-        if (!confirm("Delete this automation and its run history?")) return;
-        await api("/automations/" + id, "DELETE");
-      } else await api("/automations/" + id + "/" + action, "POST");
-      await refresh();
-    } catch (e) {
-      fail(e);
-    }
-  }
-  async function generate() {
-    setLoading(true);
-    setError("");
-    try {
-      const j = await api<Job>("/automations/draft", "POST", { instruction });
-      setDraft({ ...j, enabled: true });
-      setInfo(
-        "Draft created. Review the task and schedule, then Save to enable it.",
-      );
-    } catch (e) {
-      fail(e);
-    } finally {
-      setLoading(false);
-    }
-  }
-  return (
-    <div className="page-scroll">
-      <section className="settings-page">
-        <div className="eyebrow">OFFLINE, ON YOUR SCHEDULE</div>
-        <h1>A little help, automatically.</h1>
-        <p>
-          Assign local work to Nila. This window runs the scheduler while open;
-          the Windows login worker keeps it running after you close the window.
-          Your computer must be awake.
-        </p>
-        {error && (
-          <div className="error-banner" role="alert">
-            {error}
-          </div>
-        )}
-        {info && <p role="status">{info}</p>}
-        <div className="panel">
-          <h2>Describe the task</h2>
-          <label>
-            Ask Nila to draft an automation
-            <textarea
-              value={instruction}
-              maxLength={2000}
-              onChange={(e) => setInstruction(e.target.value)}
-              placeholder="Every morning, summarize my notes and unfinished tasks."
-            />
-          </label>
-          <button
-            className="primary"
-            disabled={loading || instruction.trim().length < 5}
-            onClick={generate}
-          >
-            {loading ? "Drafting locally…" : "Create draft"}
-          </button>
-          <p>The model creates a draft. You choose when it runs.</p>
-        </div>
-        <form className="panel" onSubmit={save}>
-          <h2>{draft.id ? "Edit automation" : "New automation"}</h2>
-          <label>
-            Title
-            <input
-              required
-              maxLength={100}
-              value={draft.title}
-              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-            />
-          </label>
-          <div className="form-grid">
-            <label>
-              Action
-              <select
-                value={draft.kind}
-                onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
-              >
-                <option value="ai">Write with local AI</option>
-                <option value="brief">Summarize local notes & tasks</option>
-                <option value="note">Save a note</option>
-                <option value="task">Create a to-do</option>
-              </select>
-            </label>
-            <label>
-              Repeat every (minutes; 0 = once)
-              <input
-                type="number"
-                required
-                min={0}
-                max={525600}
-                value={draft.interval_minutes}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    interval_minutes: Number(e.target.value),
-                  })
-                }
-              />
-            </label>
-          </div>
-          <label>
-            Instructions / text
-            <textarea
-              required
-              maxLength={4000}
-              value={draft.prompt}
-              onChange={(e) => setDraft({ ...draft, prompt: e.target.value })}
-            />
-          </label>
-          <label>
-            Next run (your local time)
-            <input
-              required
-              type="datetime-local"
-              value={localTime(draft.next_run)}
-              onChange={(e) => {
-                if (e.target.value)
-                  setDraft({
-                    ...draft,
-                    next_run: new Date(e.target.value).getTime() / 1000,
-                  });
-              }}
-            />
-          </label>
-          <label className="check-label">
-            <input
-              type="checkbox"
-              checked={!!draft.enabled}
-              onChange={(e) =>
-                setDraft({ ...draft, enabled: e.target.checked })
-              }
-            />
-            Enable this automation
-          </label>
-          <button className="primary">
-            <Check size={15} />
-            Save automation
-          </button>
-          {draft.id && (
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => setDraft(fresh())}
-            >
-              Cancel edit
-            </button>
-          )}
-          <p>
-            Repeats use elapsed minutes; 1,440 means every 24 hours, not a
-            timezone-aware calendar rule. Minimum repeating interval: 5 minutes.
-          </p>
-        </form>
-        <h2 className="section-label">Scheduled work</h2>
-        {!data.jobs.length && <p className="muted">No automations yet.</p>}
-        {data.jobs.map((job) => (
-          <div className="panel" key={job.id}>
-            <div className="job-heading">
-              <strong>{job.title}</strong>
-              <span className="muted">
-                {(job.running_until || 0) > Date.now() / 1000
-                  ? "Running"
-                  : job.enabled
-                    ? "Scheduled"
-                    : "Paused"}
-              </span>
-            </div>
-            <p>{job.prompt}</p>
-            <p>
-              {job.kind} ·{" "}
-              {job.interval_minutes
-                ? `Every ${job.interval_minutes} minutes`
-                : "Once"}{" "}
-              · {new Date(job.next_run * 1000).toLocaleString()}
-            </p>
-            <div className="job-actions">
-              <button
-                className="text-button"
-                onClick={() => action(job.id!, "run")}
-              >
-                <Play size={14} />
-                Run now
-              </button>
-              <button
-                className="text-button"
-                onClick={() => action(job.id!, "pause")}
-              >
-                <Pause size={14} />
-                Pause / stop
-              </button>
-              <button
-                className="text-button"
-                onClick={() => {
-                  setDraft({ ...job, enabled: !!job.enabled });
-                  setInfo("Editing " + job.title);
-                }}
-              >
-                <PenLine size={14} />
-                Edit / resume
-              </button>
-              <button
-                className="text-button"
-                onClick={() => action(job.id!, "delete")}
-              >
-                <Trash2 size={14} />
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
-        <h2 className="section-label">Run history</h2>
-        {data.runs.map((run) => (
-          <details className="panel" key={run.id}>
-            <summary>
-              {data.jobs.find((j) => j.id === run.automation_id)?.title ||
-                "Automation"}{" "}
-              · {run.status} · {new Date(run.started * 1000).toLocaleString()}
-            </summary>
-            <pre className="run-output">{run.output || "Working…"}</pre>
-            <button
-              className="text-button"
-              onClick={() => {
-                const u = URL.createObjectURL(
-                  new Blob([run.output], { type: "text/plain" }),
-                );
-                const a = document.createElement("a");
-                a.href = u;
-                a.download = "nila-automation.txt";
-                a.click();
-                setTimeout(() => URL.revokeObjectURL(u), 1000);
-              }}
-            >
-              Download result
-            </button>
-          </details>
-        ))}
-      </section>
-    </div>
-  );
-}
 export function SystemPanel() {
+  const {ask,confirmation}=useInlineConfirm();
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [update, setUpdate] = useState<any>(null),
@@ -359,9 +85,9 @@ export function SystemPanel() {
   }
   async function install() {
     if (
-      !confirm(
+      !(await ask(
         "Download and build the latest GitHub main-branch code? Your next launch will use the new version.",
-      )
+      ))
     )
       return;
     try {
@@ -389,7 +115,7 @@ export function SystemPanel() {
   }
   return (
     <div className="page-scroll">
-      <section className="settings-page">
+      <section className="settings-page">{confirmation}
         <div className="eyebrow">KEEP NILA FEELING AT HOME</div>
         <h1>Your local system.</h1>
         <p>Diagnostics, downloads, updates and background work—in one place.</p>
@@ -421,8 +147,7 @@ export function SystemPanel() {
                 </dd>
                 <dt>Background worker</dt>
                 <dd>
-                  {data.worker.running ? "Running" : "Not running"} · Web
-                  scheduler is active
+                  {data.worker.running ? "Running" : "Not running"} · Telegram connection is managed by Nila
                 </dd>
                 <dt>Data folder</dt>
                 <dd>{data.storage}</dd>
@@ -513,12 +238,12 @@ export function SystemPanel() {
         <div className="panel">
           <h2>
             <Terminal size={18} />
-            Background automation
+            Telegram background connection
           </h2>
           <p>
             The Windows installer registers a per-user login task. Start/stop
-            controls affect that worker; this open Web UI continues to run its
-            scheduler. Pause individual jobs to stop them everywhere.
+            controls affect that worker. Disable Telegram in Workspace to stop
+            the connection everywhere, including this open Web UI.
           </p>
           <div className="job-actions">
             {["start", "stop", "enable", "disable"].map((action) => (
@@ -537,8 +262,8 @@ export function SystemPanel() {
             ))}
           </div>
           <p>
-            From the terminal: <code>nila worker</code>. Offline jobs need an
-            awake computer; missed schedules resume once when Nila next runs.
+            From the terminal: <code>nila worker</code>. Telegram needs an
+            awake computer, internet, Ollama, and an enabled connection.
           </p>
         </div>
       </section>

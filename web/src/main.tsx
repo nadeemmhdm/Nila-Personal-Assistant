@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
+import { Workspace, ChatWorkspace } from "./Workspace";
 import { RichText } from "./RichText";
 import {
+  FileText,
+  Paperclip,
+  History,
+  FolderOpen,
   ThumbsUp,
   ThumbsDown,
   Globe,
@@ -35,10 +40,13 @@ import {
   ChevronDown,
 } from "lucide-react";
 import "./style.css";
-import { Automations, SystemPanel } from "./ExtensionPanels";
+
 import { LearningLab } from "./LearningLab";
 
 type Settings = {
+  thinking_level: "low" | "medium" | "high";
+  memory_review: boolean;
+  setup_complete: boolean;
   assistant_name: string;
   user_name: string;
   model: string;
@@ -65,7 +73,7 @@ type Message = {
   status: string;
   rating?: number;
 };
-type Chat = { id: string; title: string; messages?: Message[] };
+type Chat = { temporary?: boolean; id: string; title: string; messages?: Message[] };
 type Item = { id: string; content: string; done?: boolean; source?: string };
 type Status = {
   online: boolean;
@@ -81,8 +89,12 @@ type Page =
   | "settings"
   | "automations"
   | "system"
-  | "learning";
+  | "learning"
+  | "workspace";
 const defaults: Settings = {
+  thinking_level: "medium",
+  memory_review: true,
+  setup_complete: false,
   assistant_name: "Nila",
   user_name: "",
   model: "llama3.2:1b",
@@ -165,12 +177,25 @@ function App() {
     [editId, setEditId] = useState<string | null>(null),
     [copied, setCopied] = useState<number | null>(null);
   const [searchMode, setSearchMode] = useState("off");
-  const [searchQuery, setSearchQuery] = useState("");
+
   const [editing, setEditing] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
   const [feedbackId, setFeedbackId] = useState<number | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackRating, setFeedbackRating] = useState(0);
+  const [regenerateBox,setRegenerateBox]=useState<number|null>(null),[regenerateText,setRegenerateText]=useState(""),[regenerating,setRegenerating]=useState<number|null>(null);
+  const [sidebarHidden,setSidebarHidden]=useState(false),[historyView,setHistoryView]=useState(false);
+  const [followupQuestions,setFollowupQuestions]=useState<string[]>([]),[attachmentNames,setAttachmentNames]=useState<string[]>([]);
+  const fileInput=useRef<HTMLInputElement>(null);
+  const [confirmation,setConfirmation]=useState<{message:string;resolve:(v:boolean)=>void}|null>(null);
+  const confirmAction=(message:string)=>new Promise<boolean>(resolve=>setConfirmation({message,resolve}));
+  const [progress,setProgress]=useState(""),[started,setStarted]=useState(0),[elapsed,setElapsed]=useState(0);
+  const [sources,setSources]=useState<{id:number;items:any[]}|null>(null);
+  const [brief,setBrief]=useState<any>(null);
+  const mini=new URLSearchParams(location.search).has("mini");
+  useEffect(()=>{const handler=(e:KeyboardEvent)=>{if(e.ctrlKey&&e.shiftKey&&e.code==='Space'){e.preventDefault();window.open('/?mini=1','nila-mini','popup,width=460,height=700')}};window.addEventListener('keydown',handler);return ()=>window.removeEventListener('keydown',handler)},[]);
+  useEffect(()=>{if(!busy)return;const id=setInterval(()=>setElapsed(Math.floor((Date.now()-started)/1000)),1000);return ()=>clearInterval(id)},[busy,started]);
+  useEffect(()=>{api<any>('/brief').then(setBrief).catch(()=>{})},[page]);
   const bottom = useRef<HTMLDivElement>(null),
     field = useRef<HTMLTextAreaElement>(null),
     requestChat = useRef<string | null>(null),
@@ -178,7 +203,7 @@ function App() {
     selection = useRef(0);
   const notify = (text: string) => {
     setNotice(text);
-    window.setTimeout(() => setNotice(""), 3000);
+
   };
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : String(e));
@@ -198,6 +223,7 @@ function App() {
         setSettings(s);
         setDraft(s);
         setChats(c);
+        if(!s.setup_complete&&!mini)setPage("workspace");
       })
       .catch(fail);
     void refreshStatus();
@@ -234,14 +260,18 @@ function App() {
     if (busy) return;
     selection.current++;
     setPage(p);
+    if(p==="settings")api<Settings>("/settings").then(s=>{setSettings(s);setDraft(s)}).catch(fail);
     setError("");
     setMobile(false);
+    setFollowupQuestions([]);
   }
   function newChat() {
     if (busy) return;
     selection.current++;
     setPage("chat");
+    if(chat?.temporary)void api("/chats/"+chat.id,"DELETE").catch(fail);
     setChat(null);
+    setFollowupQuestions([]);setAttachmentNames([]);setRegenerateBox(null);setSources(null);
     setEditing(null);
     setFeedbackId(null);
     setInput("");
@@ -249,13 +279,22 @@ function App() {
     setMobile(false);
     field.current?.focus();
   }
+  useEffect(()=>{const reload=()=>{api<Settings>('/settings').then(s=>{setSettings(s);setDraft(s)}).catch(fail)};window.addEventListener('nila-settings-changed',reload);return()=>window.removeEventListener('nila-settings-changed',reload)},[]);
+  async function temporaryChat(){
+    if(busy)return;
+    selection.current++;setFollowupQuestions([]);setAttachmentNames([]);setSources(null);
+    try { if(chat?.temporary)await api('/chats/'+chat.id,'DELETE');const c=await api<Chat>('/chats','POST',{temporary:true});setChat(c);setPage('chat');setInput('');setEditing(null);setRegenerateBox(null);setError('');setMobile(false);setSearchMode('off'); }
+    catch(e){fail(e)}
+  }
   async function openChat(id: string) {
     if (busy) return;
     const ticket = ++selection.current;
     try {
+      if(chat?.temporary&&chat.id!==id)await api("/chats/"+chat.id,"DELETE");
       const value = await api<Chat>("/chats/" + id);
       if (ticket === selection.current) {
         setChat(value);
+        setFollowupQuestions([]);setAttachmentNames([]);setRegenerateBox(null);setSources(null);
         setEditing(null);
         setFeedbackId(null);
         setPage("chat");
@@ -266,19 +305,23 @@ function App() {
       fail(e);
     }
   }
-  async function send(text = input, editMessageId: number | null = null) {
+  async function send(text = input, editMessageId: number | null = null, approved=false, regenerateId:number|null=null, instruction="") {
     if (sendLock.current || !text.trim()) return;
+
+    selection.current++;
     sendLock.current = true;
+    setFollowupQuestions([]);
+    setStarted(Date.now());setElapsed(0);setProgress('Checking local model');setRegenerating(regenerateId);setRegenerateBox(null);setSources(null);
     setBusy(true);
     setError("");
     setReplyText("");
-    setInput("");
+    if(!regenerateId)setInput("");
     setEditing(null);
     let active = chat;
     try {
       if (!active) active = await api<Chat>("/chats", "POST");
       requestChat.current = active.id;
-      setChat({
+      if(!regenerateId)setChat({
         ...active,
         messages: [
           ...(editMessageId
@@ -292,11 +335,11 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content: text,
-          search_mode: searchMode,
-          search_query:
-            searchMode !== "off" && searchQuery.trim()
-              ? searchQuery.trim()
-              : null,
+          search_mode: regenerateId ? "off" : searchMode,
+          regenerate_id: regenerateId,
+          instruction,
+          preserve_branch: true,
+          thinking_level: settings.thinking_level,
           edit_message_id: editMessageId,
         }),
       });
@@ -313,6 +356,8 @@ function App() {
       const event = (line: string) => {
         if (!line.trim()) return;
         const data = JSON.parse(line);
+        if(data.progress)setProgress(data.progress);
+        if(data.stopped&&regenerateId)notify("Regeneration stopped. Original answer kept.");
         if (data.error) setError(data.error);
         if (data.token) setReplyText((t) => t + data.token);
         if (data.done) sawDone = true;
@@ -333,18 +378,13 @@ function App() {
         );
     } catch (e) {
       fail(e);
-      setInput(text);
+
     } finally {
       if (active) {
         try {
           const saved = await api<Chat>("/chats/" + active.id);
           setChat(saved);
-          if (
-            !saved.messages?.some(
-              (m) => m.role === "user" && m.content === text,
-            )
-          )
-            setInput(text);
+
           await refreshChats();
         } catch (e) {
           fail(e);
@@ -354,7 +394,19 @@ function App() {
       sendLock.current = false;
       setReplyText("");
       setBusy(false);
+      setRegenerating(null);
+      if(active){const id=active.id,ticket=selection.current;api<string[]>(`/chats/${id}/followups`,'POST').then(q=>{if(requestChat.current===null&&ticket===selection.current)setFollowupQuestions(q)}).catch(()=>{});}
     }
+  }
+  async function attachFile(file:File){
+    setError('');setNotice('Reading file locally…');
+    try{
+      if(file.size>5*1024*1024)throw Error('File limit: 5 MB');
+      let active=chat;if(!active){active=await api<Chat>('/chats','POST');setChat(active);}
+      const data=await new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=reject;r.readAsDataURL(file)});
+      await api(`/chats/${active.id}/attachments`,'POST',{name:file.name,data});
+      setAttachmentNames(n=>[...n,file.name]);notify('File attached. Ask a question about it.');await refreshChats();
+    }catch(e){fail(e);setNotice('')}
   }
   async function stop() {
     if (requestChat.current)
@@ -365,7 +417,7 @@ function App() {
       }
   }
   async function deleteChat(id: string) {
-    if (!confirm("Delete this conversation permanently?")) return;
+    if (!await confirmAction("Delete this conversation permanently?")) return;
     try {
       await api("/chats/" + id, "DELETE");
       if (chat?.id === id) newChat();
@@ -449,7 +501,7 @@ function App() {
     }
   }
   async function removeItem(id: string) {
-    if (!confirm("Delete this item?")) return;
+    if (!await confirmAction("Delete this item?")) return;
     try {
       await api("/items/" + page + "/" + id, "DELETE");
       setItems(await api<Item[]>("/items/" + page));
@@ -458,13 +510,10 @@ function App() {
     }
   }
   const nav = [
-    { id: "chat", icon: MessageSquare, label: "Conversations" },
+    { id: "chat", icon: MessageSquare, label: "Chat" },
+    { id: "workspace", icon: FolderOpen, label: "Workspace" },
     { id: "learning", icon: Brain, label: "Learning Lab" },
     { id: "memories", icon: Brain, label: "Memory" },
-    { id: "notes", icon: NotebookPen, label: "Notes" },
-    { id: "tasks", icon: CheckCheck, label: "Tasks" },
-    { id: "automations", icon: RefreshCw, label: "Automations" },
-    { id: "system", icon: Terminal, label: "System" },
   ] as const;
   const suggestions = [
     {
@@ -497,7 +546,7 @@ function App() {
     },
   ];
   return (
-    <div className="app">
+    <div className={"app"+(mini?" mini-app":"")+(sidebarHidden?" sidebar-collapsed":"")}>
       <div
         className={`scrim ${mobile ? "show" : ""}`}
         onClick={() => setMobile(false)}
@@ -511,9 +560,9 @@ function App() {
             nila<span className="brand-dot">.</span>
           </span>
           <button
-            className="icon mobile-only"
-            aria-label="Close navigation"
-            onClick={() => setMobile(false)}
+            className="icon"
+            aria-label="Hide sidebar"
+            onClick={() => {setMobile(false);setSidebarHidden(true)}}
           >
             <PanelLeftClose size={18} />
           </button>
@@ -523,7 +572,9 @@ function App() {
           <Plus size={18} />
           New conversation<span>↗</span>
         </button>
-        <nav>
+        <button className="temporary-button" disabled={busy} onClick={temporaryChat}><ShieldCheck size={15}/>Temporary chat</button>
+        <div className="sidebar-switch"><button className={!historyView?'active':''} onClick={()=>setHistoryView(false)}>Explore</button><button className={historyView?'active':''} onClick={()=>setHistoryView(true)}><History size={14}/>History</button></div>
+        {!historyView&&<nav>
           {nav.map((n) => (
             <button
               key={n.id}
@@ -536,8 +587,8 @@ function App() {
               {n.id === "memories" && <span className="tiny-dot" />}
             </button>
           ))}
-        </nav>
-        <div className="history-heading">
+        </nav>}
+        {historyView&&<><div className="history-heading">
           RECENT CONVERSATIONS <span>{chats.length}</span>
         </div>
         <label className="search">
@@ -579,13 +630,8 @@ function App() {
             </p>
           )}
         </div>
+        </>}
         <div className="sidebar-bottom">
-          <div className="local-card">
-            <ShieldCheck size={17} />
-            <div>
-              Local by default<small>Your space. Your conversations.</small>
-            </div>
-          </div>
           <button
             className={
               page === "settings" ? "settings-link selected" : "settings-link"
@@ -615,12 +661,13 @@ function App() {
         </div>
       </aside>
       <main>
+        {mini&&<div className="mini-toolbar"><strong>Mini Nila</strong><button onClick={newChat}>New</button><button onClick={temporaryChat}>Temporary</button><a href="/" target="_blank" rel="noreferrer">Full workspace</a></div>}
         <header>
           <div className="header-left">
             <button
-              className="icon mobile-only"
-              aria-label="Open navigation"
-              onClick={() => setMobile(true)}
+              className="icon"
+              aria-label="Toggle sidebar"
+              onClick={() => {setSidebarHidden(!sidebarHidden);setMobile(!mobile)}}
             >
               <Menu size={20} />
             </button>
@@ -667,8 +714,9 @@ function App() {
             </button>
           </div>
         )}
+        {confirmation&&<div className="section-confirm" role="region" aria-label="Confirm action"><p>{confirmation.message}</p><button onClick={()=>{confirmation.resolve(true);setConfirmation(null)}}>Confirm</button><button onClick={()=>{confirmation.resolve(false);setConfirmation(null)}}>Cancel</button></div>}
         {notice && (
-          <div className="toast" role="status">
+          <div className="section-notice" role="status">
             <Check size={16} />
             {notice}
           </div>
@@ -676,12 +724,14 @@ function App() {
         {page === "chat" ? (
           <>
             <div className="chat-scroll">
+              {chat&&<ChatWorkspace cid={chat.id} temporary={chat.temporary} busy={busy}/>}
               {!chat?.messages?.length && !busy ? (
                 <section className="welcome">
                   <div className="eyebrow">
                     <span /> A SPACE TO THINK, CREATE & EXPLORE
                   </div>
                   <Orb />
+                  {brief&&<button className="brief-chip" onClick={()=>navigate('workspace')}>Today · {brief.conversations} conversations · {brief.pending_memories} memories to review</button>}
                   <h1>
                     {settings.user_name
                       ? `Hello, ${settings.user_name}.`
@@ -775,15 +825,16 @@ function App() {
                             <small>Interrupted</small>
                           )}
                         </div>
-                        <div className="markdown">
-                          <RichText
+                        <div className={"markdown"+(regenerating===m.id?" streaming":"")}>
+                          {regenerating===m.id&&!replyText?<div className="skeleton"><i/><i/></div>:<RichText
                             text={
-                              m.content ||
+                              (regenerating===m.id?replyText:m.content) ||
                               (m.status !== "complete"
                                 ? "Response stopped before any text arrived."
                                 : "")
                             }
-                          />
+                          />}
+                          {regenerating===m.id&&<small role="status">{progress} · {elapsed}s</small>}
                         </div>
                         {editing === m.id && (
                           <div className="edit-prompt">
@@ -794,8 +845,7 @@ function App() {
                               onChange={(e) => setEditText(e.target.value)}
                             />
                             <small>
-                              This replaces this answer and removes later turns
-                              in this conversation.
+                              The original conversation is kept as a branch. This replaces the answer and later turns here.
                             </small>
                             <div>
                               <button
@@ -810,6 +860,12 @@ function App() {
                             </div>
                           </div>
                         )}
+                        {m.role==='assistant'&&<div className="response-tools">
+                          <button className="icon" aria-label="Regenerate response" title="Regenerate response" disabled={busy} onClick={()=>{setRegenerateBox(m.id);setRegenerateText('')}}><RefreshCw size={15}/></button>
+                          <button disabled={busy} onClick={async()=>{try{setSources({id:m.id,items:await api<any[]>(`/chats/${chat!.id}/messages/${m.id}/sources`)})}catch(e){fail(e)}}}><Globe size={14}/>Sources & context</button>
+                        </div>}
+                        {regenerateBox===m.id&&<div className="edit-prompt"><label>What should change? (optional)<textarea aria-label="Regeneration instructions" maxLength={2000} value={regenerateText} onChange={e=>setRegenerateText(e.target.value)} placeholder="e.g. Correct the second example, or explain in simpler words"/></label><small>Only this answer is regenerated locally, in the same place. The original conversation is saved as a branch; later turns move there. If stopped or failed, your original stays. No new web query is sent.</small><div><button disabled={busy} onClick={()=>send('Regenerate this response',null,true,m.id,regenerateText)}>Regenerate answer</button><button onClick={()=>setRegenerateBox(null)}>Cancel</button></div></div>}
+                        {sources?.id===m.id&&<div className="source-explanation"><strong>Context supplied to this answer</strong><p>This shows supplied references, not proof of the model's reasoning or factual accuracy.</p>{sources.items.length?sources.items.map((source,i)=><div key={i}><b>{source.kind}</b> · {source.label}{source.page?` · page ${source.page}`:''}{source.url&&<a href={source.url} target="_blank" rel="noreferrer">Open source</a>}</div>):<p>No recorded references for this answer.</p>}<button onClick={()=>setSources(null)}>Close references</button></div>}
                         <div className="message-actions">
                           <button
                             className="icon"
@@ -839,7 +895,7 @@ function App() {
                               <PenLine size={14} />
                             </button>
                           )}
-                          {m.role === "assistant" && (
+                          {m.role === "assistant" && !chat?.temporary && (
                             <>
                               <button
                                 className={
@@ -867,52 +923,15 @@ function App() {
                               >
                                 <ThumbsDown size={14} />
                               </button>
-                              <button
-                                className="feedback-link"
-                                disabled={busy}
-                                onClick={() => {
-                                  setFeedbackId(m.id);
-                                  setFeedbackText("");
-                                  setFeedbackRating(m.rating || -1);
-                                }}
-                              >
-                                Add feedback
-                              </button>
+                              
                             </>
                           )}
                         </div>
-                        {feedbackId === m.id && (
-                          <div className="edit-prompt">
-                            <textarea
-                              aria-label="Feedback guidance"
-                              value={feedbackText}
-                              maxLength={500}
-                              placeholder="What should Nila improve? e.g. Shorter answers, explain with examples."
-                              onChange={(e) => setFeedbackText(e.target.value)}
-                            />
-                            <div>
-                              <button
-                                disabled={busy || !feedbackText.trim()}
-                                onClick={() =>
-                                  rate(m.id, feedbackRating, feedbackText)
-                                }
-                              >
-                                Save feedback
-                              </button>
-                              <button onClick={() => setFeedbackId(null)}>
-                                Cancel
-                              </button>
-                            </div>
-                            <small>
-                              Stored locally; never sent to Gemini. Adapts
-                              future context, not model weights.
-                            </small>
-                          </div>
-                        )}
+
                       </div>
                     </article>
                   ))}
-                  {busy && (
+                  {busy && !regenerating && (
                     <article className="message assistant">
                       <div className="message-avatar">
                         <Orb small busy />
@@ -921,9 +940,7 @@ function App() {
                         <div className="message-meta">
                           {settings.assistant_name}
                           <small className="responding">
-                            {searchMode === "off"
-                              ? "Responding"
-                              : "Searching & composing"}
+                            {progress} · {elapsed}s
                             <span className="dots">
                               <i />
                               <i />
@@ -944,79 +961,12 @@ function App() {
                       </div>
                     </article>
                   )}
-                  {!busy && chat?.messages?.length && (
-                    <button
-                      className="retry"
-                      onClick={() => {
-                        const last = [...(chat.messages || [])]
-                          .reverse()
-                          .find((m) => m.role === "user");
-                        if (last) {
-                          setEditing(last.id);
-                          setEditText(last.content);
-                        }
-                      }}
-                    >
-                      <RefreshCw size={13} />
-                      Edit last prompt
-                    </button>
-                  )}
-                  {!busy && !!chat?.messages?.length && (
-                    <button
-                      className="retry"
-                      onClick={() =>
-                        send(
-                          "Continue your previous answer from where you left off, without repeating it.",
-                        )
-                      }
-                    >
-                      <MessageSquare size={13} />
-                      Continue response
-                    </button>
-                  )}
+                  {!busy&&followupQuestions.length>0&&<div className="followup-questions"><small>Explore next</small>{followupQuestions.map(q=><button key={q} onClick={()=>send(q)}>{q}<ArrowUpRight size={13}/></button>)}</div>}
                   <div ref={bottom} />
                 </section>
               )}
             </div>
             <div className="composer-area">
-              <div className="search-controls">
-                <Globe size={15} />
-                <label htmlFor="search-mode">Web search</label>
-                <select
-                  id="search-mode"
-                  value={searchMode}
-                  disabled={busy}
-                  onChange={(e) => setSearchMode(e.target.value)}
-                >
-                  <option value="off">Off · local only</option>
-                  <option value="quick">Quick search</option>
-                  <option value="deep">Deep search</option>
-                </select>
-                <span>
-                  {searchMode === "off"
-                    ? "No web queries sent"
-                    : searchMode === "quick"
-                      ? "One lookup · up to 4 sources"
-                      : "Three queries · up to 8 sources"}
-                </span>
-              </div>
-              {searchMode !== "off" && (
-                <div className="search-query">
-                  <input
-                    aria-label="Web search query"
-                    maxLength={500}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Optional separate search query"
-                    disabled={busy}
-                  />
-                  <small>
-                    Only this query (or your new message if blank) goes to
-                    search services. Saved chats, profile and memory are
-                    excluded. Internet required.
-                  </small>
-                </div>
-              )}
               <form
                 className="composer"
                 onSubmit={(e) => {
@@ -1043,11 +993,15 @@ function App() {
                     }
                   }}
                 />
+                {attachmentNames.length>0&&<div className="attachment-chips">{attachmentNames.map((n,i)=><span key={i}><FileText size={12}/>{n}</span>)}</div>}
                 <div className="composer-bottom">
-                  <span>
-                    <ShieldCheck size={14} />
-                    Local conversation
-                  </span>
+                  <div className="composer-tools">
+                    <button type="button" className="icon" aria-label="Attach file" disabled={busy} onClick={()=>fileInput.current?.click()}><Paperclip size={17}/></button>
+                    <input ref={fileInput} type="file" hidden accept=".pdf,.txt,.md,.csv,.json,.py,.js,.ts,.html,.css" onChange={e=>{const f=e.target.files?.[0];if(f)void attachFile(f);e.target.value=''}}/>
+                    <select aria-label="Search mode" value={searchMode} disabled={busy} onChange={e=>setSearchMode(e.target.value)}><option value="off">Web off</option><option value="quick">Quick search</option><option value="deep">Deep search</option></select>
+                    <select aria-label="Thinking level" value={settings.thinking_level} disabled={busy} onChange={async e=>{const thinking_level=e.target.value as Settings['thinking_level'];try{const s=await api<Settings>('/settings','PUT',{...await api<Settings>('/settings'),thinking_level});setSettings(s);setDraft(s)}catch(err){fail(err)}}}><option value="low">Think · Low</option><option value="medium">Think · Medium</option><option value="high">Think · High</option></select>
+                    <select aria-label="Local model" value={settings.model} disabled={busy} onChange={async e=>{try{const s=await api<Settings>('/settings','PUT',{...await api<Settings>('/settings'),model:e.target.value});setSettings(s);setDraft(s);await refreshStatus()}catch(err){fail(err)}}}>{!(status?.models||[]).some(m=>m.name===settings.model)&&<option value={settings.model}>{settings.model}</option>}{status?.models.map(m=><option key={m.name} value={m.name}>{m.name}</option>)}</select>
+                  </div>
                   <div>
                     <kbd>Shift + Enter for a new line</kbd>
                     {busy ? (
@@ -1083,12 +1037,11 @@ function App() {
               </div>
             </div>
           </>
+        ) : page === "workspace" ? (
+          <Workspace openChat={openChat} initial={settings.setup_complete?"Today":"Setup"}/>
         ) : page === "learning" ? (
           <LearningLab />
-        ) : page === "automations" ? (
-          <Automations />
-        ) : page === "system" ? (
-          <SystemPanel />
+
         ) : page === "settings" ? (
           <div className="page-scroll">
             <section className="settings-page">

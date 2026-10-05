@@ -1,10 +1,10 @@
-"""Per-user background worker; Windows installer registers this at login."""
+"""Per-user Telegram bridge worker; Windows installer registers this at login."""
 import asyncio
 import json
 import os
 import time
 from contextlib import suppress
-from .automation import Scheduler
+from .telegram_bot import Bridge
 from .updater import start_auto_update
 
 async def run_worker(store):
@@ -19,8 +19,8 @@ async def run_worker(store):
             import fcntl
             try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
             except BlockingIOError:return
-        scheduler=Scheduler(store)
-        task=asyncio.create_task(scheduler.loop())
+        bridge=Bridge(store)
+        task=asyncio.create_task(bridge.loop())
         stamp=store.root/'worker-status.json'
         start_auto_update(store)
         try:

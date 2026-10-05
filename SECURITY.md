@@ -2,7 +2,7 @@
 
 ## Supported scope
 
-Nila 0.4.x is a single-user, local-first assistant. Use the latest main-branch build and review changes before deploying it in a sensitive environment. Nila is not a hardened multi-tenant service.
+Nila 0.5.x is a single-user, local-first assistant. Use the latest main-branch build and review changes before deploying it in a sensitive environment. Nila is not a hardened multi-tenant service.
 
 ## Data protection
 
@@ -16,7 +16,7 @@ The v0.1.0 migration encrypts existing records transactionally, uses SQLite secu
 
 Memory learning uses only the configured local Ollama endpoint. It considers short first-person statements, filters sensitive markers, validates extracted values against verbatim evidence and limits categories and sizes. It never intentionally infers health, political, religious or other sensitive attributes. These checks are heuristic, not a guarantee; inspect and correct saved facts.
 
-Automatic memory is enabled by default and can be disabled independently. Turning off memory use also stops learning. Deleted facts are suppressed by normalized fingerprints; a differently worded fact can still be learned later. Manually configured profile information remains separate and must be cleared in Preferences if no longer wanted.
+Memory suggestions require review by default and are not used until approved. Automatic memory is enabled by default and can be disabled independently. Turning off memory use also stops learning. Deleted facts are suppressed by normalized fingerprints; a differently worded fact can still be learned later. Manually configured profile information remains separate and must be cleared in Preferences if no longer wanted.
 
 ## Local API and model output
 
@@ -24,11 +24,21 @@ The server binds to 127.0.0.1 and checks request host, browser origin and cross-
 
 React escapes output, Markdown raw HTML is disabled, external Markdown images are omitted, and a restrictive content policy is used. Generated links and code remain untrusted. Nila does not execute shell commands supplied by the model.
 
-## Automation boundaries
+## Telegram and removed automation boundaries
 
-The scheduler permits four defined local actions: AI writing, local notes/tasks briefs, adding notes and adding to-dos. AI-generated schedules require a user to review and save a draft. Arbitrary commands, outbound messages, credentials, and arbitrary filesystem paths are not exposed as model tools.
+The optional Telegram bridge uses a fixed HTTPS API origin, an encrypted token and one allowlisted positive private user/chat ID. Both sender and private chat IDs must match. Groups, bot senders, stale requests and non-text messages are ignored. Only one local poller owns the connection. Disabling or changing credentials cancels active generation and prevents subsequent sends; already submitted Telegram messages cannot be recalled.
 
-Jobs and outputs are encrypted. Atomic database claims prevent simultaneous workers from executing the same scheduled occurrence. A crash may still cause a repeated note/to-do write after recovery. Pause disables future runs and cancels an active generation when the worker next checks. Computer sleep/shutdown prevents execution.
+Personal context sharing is off by default. Changing that setting resets the bot conversation to avoid reusing previously shared context. Telegram receives messages and generated answers; it is not an offline or end-to-end encrypted bot channel. Tokens are excluded from backups and status responses. Treat the local account as trusted.
+
+Notes, tasks and scheduled automations are retired. Their Web routes return 410 and the worker no longer runs the scheduler. Old records remain for backup compatibility. Model output never executes shell commands or arbitrary tools.
+
+## Temporary chats, attachments and backups
+
+Temporary chat records and extracted attachments use an in-memory database and ephemeral key. No ordinary chat record is written to the persistent store. OS swap, process dumps and browser memory are outside this boundary. Closing a browser tab alone does not immediately destroy its server-side RAM state.
+
+PDF extraction runs in a bounded subprocess with a timeout and page/text limits; Linux additionally applies a memory limit. No OCR or remote parsing service is used. Only extracted text is stored, encrypted. Document excerpts are untrusted context and never instructions to execute code. Keyword matching can miss relevant material.
+
+Portable backups use Scrypt-derived Fernet encryption and require a password. Restore validates the schema and runs transactionally, pauses legacy jobs and disables updates/Telegram. Credentials and temporary chats are excluded. Backup passwords cannot be recovered. Old answers and branches may retain text later deleted from a memory or source document.
 
 ## Installer and update trust
 
@@ -56,6 +66,6 @@ Ollama cloud-tagged models selected for ordinary chat may route data through Oll
 
 DDGS receives only a user-supplied search query or the current message when Quick/Deep is selected. The search module has no Store parameter and cannot retrieve saved chats, personal memory, profile or feedback. Off returns before importing the search provider. No Gemini call is involved in normal chat or web search. Search snippets are bounded, deduplicated, labeled untrusted and never executed. Only HTTP(S) public-looking source URLs are retained; Nila does not fetch arbitrary result pages. Search results and linked pages may still be malicious or inaccurate. Search-provider network metadata is outside local encryption.
 
-Feedback reasons are encrypted; ratings and associated message IDs are metadata. Local chat context uses bounded examples/guidance; votes are not authoritative corrections and do not fine-tune the model. Clearing a vote removes its guidance, and deleting a chat or truncating a branch cascades to associated feedback.
+Current feedback controls save only thumbs up/down. Legacy feedback reasons remain encrypted; ratings and associated message IDs are metadata. Local chat context uses bounded examples/guidance; votes are not authoritative corrections and do not fine-tune the model. Clearing a vote removes its guidance, and deleting a chat or truncating a branch cascades to associated feedback.
 
 The Learning Lab local-model prompt is isolated from ordinary chat context, including retrieved feedback and web-search history. Its outbound review client accepts only a key and explicit study-session data, with no Store access. Extra session fields (including memory-inclusion flags) are rejected. Tests seed private profile, memory, notes, conversations and feedback and check both local-Lab and Gemini HTTP payloads. Content explicitly pasted into the study topic/description is still sent with the user's session consent.

@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nila-personal-assistant"
-version = "0.4.0"
+version = "0.5.0"
 description = "A local-first personal assistant with an animated web interface and a shared Ollama-powered CLI."
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
-dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "httpx>=0.27,<1", "platformdirs>=4,<5", "cryptography>=44,<52", "ddgs>=9,<10"]
+dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "httpx>=0.27,<1", "platformdirs>=4,<5", "cryptography>=44,<52", "ddgs>=9,<10", "pypdf>=6.12,<7", "psutil>=7,<8", "rich>=14,<15"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "pyinstaller>=6,<7"]

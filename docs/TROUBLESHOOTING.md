@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Start with **System → Run diagnostics** or `nila doctor`.
+Start with **Workspace → System → Run diagnostics** or `nila doctor`.
 
 | Symptom/code | Meaning | Next step |
 | --- | --- | --- |
@@ -15,7 +15,7 @@ Start with **System → Run diagnostics** or `nila doctor`.
 | `nila` not recognized | New PATH not loaded | Open a new terminal; check `%LOCALAPPDATA%\NilaApp\bin`. |
 | WinGet unavailable | App Installer missing | Install/update Microsoft App Installer from Microsoft Store. |
 | Prerequisite install fails | WinGet, permissions or network issue | Complete Windows permission prompts, check internet, then rerun. |
-| Automation did not run | PC asleep, job paused, or no worker/server | Check schedule, run `nila service start` or `nila worker`; keep PC awake. |
+| Old automation no longer runs | Retired in v0.5 | Old data is retained; the worker now serves optional Telegram access. |
 | Memory not learned | Conservative extraction skipped it | Use a short first-person statement or add the fact manually. |
 | Update unavailable | Offline/API limit or unsupported install | Retry later; use manual rebuild for Linux/source installs. |
 
@@ -29,9 +29,9 @@ An update activates on the next launch. Close the Web/CLI process and reopen it;
 
 Stop Nila and its worker before backing up the entire data folder. Keep `vault.key` with `nila.db`; the database alone is insufficient. Windows DPAPI keys are account-bound. Existing external plaintext backups from v0.1.0 are not encrypted by the upgrade.
 
-## Offline and scheduling behavior
+## Offline behavior
 
-Chat, saved content and installed-model jobs work offline. Downloading a model, installing requirements or checking/building updates requires internet. Scheduled repeats use elapsed minutes. Missed intervals are collapsed to one run when a scheduler returns. Notes/to-dos created by automation are not native desktop notification reminders.
+Chat and attached-text retrieval work offline with an installed local model. Search, Telegram, Gemini, downloads and updates need internet. Notes, tasks and scheduled automation no longer run.
 
 ## Source development
 
@@ -43,7 +43,7 @@ If `/` reports that the interface is missing, run `npm ci` and `npm run build` i
 - **Quota/rate limit:** the session stops without automatic retries. Check your AI Studio quota and choose an available model or retry later. Nila does not upgrade billing automatically.
 - **Invalid or blocked review:** no lesson is saved for that review. Try a different supported Gemini model or a clearer topic.
 - **Local model unavailable:** download it in System or with `nila pull MODEL`. Learning Lab needs a local text-chat model; embedding-only and cloud-tagged local-model selections are unsuitable.
-- **Another request is running:** Learning Lab reserves local generation. Stop the lab or wait before starting ordinary chat/AI jobs.
+- **Another request is running:** Learning Lab reserves local generation. Stop the lab or wait before starting ordinary chat.
 - **No learned improvement:** only acceptable reviewed lessons are saved; matching uses topic/content keywords. Check Learning Lab → Learned knowledge and the Preferences knowledge switch. This is retrieved context, not model-weight training.
 - **How to stop:** use Stop session, `nila learn --stop ID`, or Ctrl+C in the terminal running the session. Closing a browser tab alone does not stop the server-hosted session.
 - **CLI feels complicated:** run `nila` once, then type normal messages. `/model` switches models; `/learn` opens the guided discussion wizard.
@@ -54,8 +54,19 @@ The earlier installer nested `.venv` under a long `stage-<GUID>/source/<reposito
 
 ## NILA-020 — Web search unavailable
 
-Check internet connectivity, try a shorter query, or select Off. Search services can throttle or block requests; no API key is required but availability is not guaranteed. Deep issues three public query variants. If the message exceeds 500 characters, enter a shorter separate Web search query. Failed lookup leaves an edited conversation branch intact and does not fabricate a live answer.
+Check internet connectivity, try a shorter query, or select Off. Search services can throttle or block requests; no API key is required but availability is not guaranteed. Deep issues three public query variants. The query is derived automatically from the first 500 characters of the current question. Failed lookup leaves an edited conversation branch intact and does not fabricate a live answer.
 
 ## Feedback or edited prompts
 
-Thumbs alone express preference; add specific feedback to explain a correction. Feedback stays local and does not train model weights. Click a selected thumb again to clear its stored guidance. Editing an earlier user prompt removes subsequent dependent turns and their feedback, but separately stored personal memories must be managed on the Memory page.
+Thumbs express preference; use regeneration instructions when you want a specific correction to the current answer. Feedback stays local and does not train model weights. Click a selected thumb again to clear its stored guidance. Editing an earlier user prompt preserves the original conversation in a branch and replaces subsequent dependent turns in the current chat, but separately stored personal memories must be managed on the Memory page.
+
+## v0.5 chat, files and connections
+
+- **Telegram does not reply:** start the bot yourself, enter your positive private user ID, enable the connection and keep Nila/Ollama awake. Groups are intentionally ignored. Test checks the token only, not a delivered message. A polling conflict means another process or webhook owns that bot; stop it before retrying. Do not paste tokens into issues.
+- **Gemini never asks/reviews:** inspect the inline Lab status. Confirm key, selected model access, internet and quota. The session stops on invalid structured output or provider failure. Opening-question failure now occurs before local generation. No live Gemini key is needed for normal chat.
+- **Low/Medium/High looks similar:** smaller/non-thinking models use different answer budgets and guidance. Native thinking depends on Ollama capability support and is not model training.
+- **PDF has no text:** scanned PDFs need OCR outside Nila. Attach UTF-8 text or a text-based PDF. File/page/text limits and the extraction timeout are intentional.
+- **CLI shows little color:** use a modern terminal with color support. Redirected output may omit ANSI colors. Markdown code blocks intentionally preserve characters such as `#` and `*`.
+- **Suggested questions are absent:** they are optional local generations and may be skipped if Ollama is busy, times out or returns invalid JSON. Chat continues normally.
+- **Old automation stopped:** v0.5 retires scheduled work; the login worker now hosts the optional Telegram connection. Old data is retained, not executed.
+- **Temporary chat remains after closing a tab:** use New conversation or delete/close the temporary conversation, or stop the server. A tab closing alone does not guarantee RAM disposal.
