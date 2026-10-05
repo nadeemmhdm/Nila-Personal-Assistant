@@ -43,6 +43,9 @@ def test_public_search_excludes_profile_and_old_identity_and_caches(tmp_path,mon
     body=json.dumps(seen);assert 'PRIVATE_OWNER' not in body and 'PRIVATE_FACT' not in body and 'Nadeem' not in body
     overview=c.get('/api/memory-overview').json();assert overview['web']==1 and overview['personal']==1
     assert 'Previously saved' in recall_web(store,'Grok AI founder')[0]
+    mid=store.chat(cid)['messages'][-1]['id']
+    c.post(f'/api/chats/{cid}/reply',json={'content':'','search_mode':'quick','regenerate_id':mid,'instruction':'Use one sentence'})
+    assert 'Use one sentence' in json.dumps(seen[-1]['messages'])
 
 def test_recover_old_web_evidence_once_and_forget(tmp_path):
     store=Store(tmp_path);cid=store.create_chat()['id'];store.add_message(cid,'user','Grok founder');mid=store.add_message(cid,'assistant','Older researched answer')
