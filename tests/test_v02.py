@@ -101,13 +101,13 @@ def test_removed_features_return_gone(store):
     assert c.get('/api/items/tasks').status_code==410
 
 
-def test_update_checks_main_not_releases_and_handles_offline(monkeypatch):
+def test_update_checks_stable_release_and_handles_offline(monkeypatch):
     original=httpx.Client;urls=[]
     def handler(r):
-        urls.append(str(r.url));return httpx.Response(200,json={'sha':'a'*40})
+        urls.append(str(r.url));return httpx.Response(200,json={'tag_name':'v99.0.0','draft':False,'prerelease':False} if str(r.url).endswith('/releases/latest') else {'sha':'a'*40})
     monkeypatch.setattr(updater.httpx,'Client',lambda **kw:original(transport=httpx.MockTransport(handler),**kw))
     result=updater.check();assert result['latest']=='a'*40
-    assert urls[0].endswith('/commits/main')
+    assert urls[0].endswith('/releases/latest') and urls[1].endswith('/commits/v99.0.0')
     def offline(r):raise httpx.ConnectError('offline')
     monkeypatch.setattr(updater.httpx,'Client',lambda **kw:original(transport=httpx.MockTransport(offline),**kw))
     assert updater.check()['online'] is False
@@ -129,7 +129,7 @@ def test_update_failure_reports_policy_and_retains_installation(store,monkeypatc
     original=httpx.Client;data=b'# verified installer fixture'
     old='a'*40;new='b'*40
     (store.root/'current.txt').write_text(old)
-    monkeypatch.setattr(updater,'check',lambda:{'managed':True,'online':True,'available':True,'latest':new,'root':str(store.root)})
+    monkeypatch.setattr(updater,'check',lambda:{'managed':True,'online':True,'available':True,'latest':new,'version':'v99.0.0','root':str(store.root)})
     def handler(r):
         if '/contents/' in str(r.url):
             return httpx.Response(200,json={'sha':hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()})
@@ -156,7 +156,9 @@ def test_version_and_update_typo_never_start_chat(monkeypatch,capsys):
     monkeypatch.setattr(cli,'Store',unexpected)
     monkeypatch.setattr(sys,'argv',['nila','version'])
     with pytest.raises(SystemExit) as e:cli.main()
-    assert e.value.code==0 and 'Nila 0.5.0' in capsys.readouterr().out
-    monkeypatch.setattr(sys,'argv',['nila','updatw'])
-    with pytest.raises(SystemExit) as e:cli.main()
-    assert e.value.code==2 and 'nila update' in capsys.readouterr().err
+    assert e.value.code==0 and 'Nila 0.6.0' in capsys.readouterr().out
+    monkeypatch.setattr(cli,'Store',lambda:object())
+    monkeypatch.setattr(updater,'apply_update',lambda:{'status':'current'})
+    monkeypatch.setattr(sys,'argv',['nila','upadte'])
+    cli.main()
+    assert 'current' in capsys.readouterr().out

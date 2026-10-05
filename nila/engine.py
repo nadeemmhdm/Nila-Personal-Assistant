@@ -33,8 +33,10 @@ def context(store, cid, settings, history=None, sources=None):
     if developer_question(query):
         system+="\nNila the personal-assistant application was developed by Nadeem: https://github.com/nadeemmhdm . This does not mean he trained the underlying model weights."
     if settings.get('user_name'):system+="\nUser's preferred name: "+json.dumps(settings['user_name'],ensure_ascii=False)
-    profile={k:settings[k] for k in ('description','position','course','completion_year','company','job_role','interests','tone') if settings.get(k)}
+    profile={k:settings[k] for k in ('description','position','course','completion_year','company','job_role','interests','tone','goals','response_style') if settings.get(k)}
     if profile:system+="\nOptional user background; use only if relevant, never as the answer itself: "+json.dumps(profile,ensure_ascii=False)
+    if settings.get("personal_context",True):
+        system+="\nPreferred tone: "+settings.get("tone","Friendly")+". Answer detail: "+settings.get("response_style","Balanced")+". Apply these preferences only when compatible with the current request."
     if settings["language"] != "Auto":
         system += f" Reply in {settings['language']}."
     if settings["memory_enabled"]:
@@ -62,6 +64,12 @@ def context(store, cid, settings, history=None, sources=None):
     from .workspace import references
     reference_text,reference_sources=references(store,cid,query) if settings.get('personal_context',True) else ('',[])
     system+=reference_text;sources.extend(reference_sources)
+    if settings.get('personal_context',True):
+        from .skills import active_context
+        system+=active_context(store)
+        if settings.get('knowledge_enabled'):
+            from .knowledge_cache import recall_web
+            cached,refs=recall_web(store,query);system+=cached;sources.extend(refs)
     # Approximate budget; keep recent turns and reserve space for generation.
     budget = max(1000, (settings["num_ctx"] - 600)*2 - len(system))
     recent = []
@@ -79,7 +87,7 @@ def context(store, cid, settings, history=None, sources=None):
         recent.pop(0)
     return [{"role":"system","content":system}, *recent]
 
-async def reply(store, cid, prompt, stop=None, learn_memory=True, search_mode="off", search_query=None, regenerate_id=None, instruction="", edit_message_id=None, preserve_branch=True, progress=None, personal_context=True):
+async def reply(store, cid, prompt, stop=None, learn_memory=True, search_mode="off", search_query=None, regenerate_id=None, instruction="", edit_message_id=None, preserve_branch=True, progress=None, personal_context=True, thinking_level=None):
     token = store.acquire()
     answer = ""
     status = "interrupted"
@@ -95,18 +103,24 @@ async def reply(store, cid, prompt, stop=None, learn_memory=True, search_mode="o
             prompt=next((m['content'] for m in reversed(prior) if m['role']=='user'),'')
             if not prompt:raise NilaError('This response has no preceding prompt')
         settings = store.settings()
+        if thinking_level in {"low","medium","high"}:settings=settings|{"thinking_level":thinking_level}
         if not personal_context:
-            settings=settings|{'memory_enabled':False,'knowledge_enabled':False,'personal_context':False,'user_name':'','description':'','position':'Other','course':'','completion_year':'','company':'','job_role':'','interests':''}
-        from .conversation import greeting_reply
+            settings=settings|{'memory_enabled':False,'knowledge_enabled':False,'personal_context':False,'user_name':'','description':'','position':'Other','course':'','completion_year':'','company':'','job_role':'','interests':'','goals':'','tone':'Friendly','response_style':'Balanced'}
+        from .conversation import greeting_reply,developer_question
         greeting=greeting_reply(prompt,settings) if not instruction.strip() else None
+        if developer_question(prompt) and not instruction.strip():greeting='Nila was developed by Nadeem. GitHub: https://github.com/nadeemmhdm'
+        if settings.get('personal_context',True):
+            with store.db() as db:has_files=bool(db.execute('SELECT 1 FROM chat_documents WHERE chat_id=?',(cid,)).fetchone())
+            if has_files:greeting=None
         evidence=[]
         if greeting is None:
             available = await models()
             if settings["model"] not in [m["name"] for m in available]:
                 raise NilaError(f"NILA-002: Model not installed. Run: ollama pull {settings['model']}")
-            from .websearch import search
-            if progress and search_mode!="off":progress("Searching public sources")
-            evidence = await search(search_query or prompt[:500], search_mode)
+            from .websearch import search,needs_search
+            selected_search=search_mode if search_query or needs_search(prompt) else 'off'
+            if progress and selected_search!='off':progress('Searching public sources')
+            evidence = await search(search_query or prompt[:500], selected_search)
             if progress:progress("Comparing sources" if evidence else "Composing locally")
         if regenerate_id is not None:
             pass
@@ -160,10 +174,9 @@ async def reply(store, cid, prompt, stop=None, learn_memory=True, search_mode="o
                             break
                     if status != "complete":
                         raise NilaError("NILA-004: Ollama disconnected before the response finished. Please retry.")
-        if status == "complete" and evidence:
-            source_footer="\n\n### Sources\n"+"\n".join(f"{i}. <{item['url']}>" for i,item in enumerate(evidence,1))
-            answer += source_footer
-            yield source_footer
+        if status == "complete" and evidence and settings.get('knowledge_enabled') and personal_context and not store.ephemeral:
+            from .knowledge_cache import remember_web
+            remember_web(store,prompt,evidence,answer)
         if status == "complete" and regenerate_id is not None:
             from .workspace import replace_answer
             replace_answer(store,cid,regenerate_id,answer,sources)

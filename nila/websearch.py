@@ -53,3 +53,8 @@ async def search(query,mode='off'):
         raise NilaError('NILA-020: Search timed out. Retry or switch web search Off.') from None
     if not results: raise NilaError('NILA-020: No web evidence available. Check your connection, retry, or switch web search Off. No live answer was generated.')
     return results
+
+
+def needs_search(query):
+    """Skip stable help; look up explicit searches and time-sensitive requests."""
+    return bool(re.search(r'\b(search|web|online|latest|current|today|now|news|weather|price|stock|score|recent|live|verify|sources|research)\b|ഇന്ന്|ഇപ്പോൾ|വാർത്ത|കാലാവസ്ഥ',query,re.I))

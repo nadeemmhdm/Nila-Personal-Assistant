@@ -1,5 +1,6 @@
 """Opt-in Telegram private-chat bridge. Fixed API origin, encrypted token, one allowed user."""
 import asyncio,json,re,time,uuid
+from contextlib import suppress
 import httpx
 from .engine import reply,NilaError
 
@@ -41,7 +42,7 @@ def disable(store,remove=False):
     return status(store)
 
 async def call(token,method,payload):
-    if method not in {'getMe','getUpdates','sendMessage','sendChatAction'}:raise TelegramError('Unsupported Telegram operation')
+    if method not in {'getMe','getUpdates','sendMessage','sendChatAction','editMessageText','answerCallbackQuery'}:raise TelegramError('Unsupported Telegram operation')
     try:
         async with httpx.AsyncClient(timeout=30,follow_redirects=False) as c:
             r=await c.post('https://api.telegram.org/bot'+token+'/'+method,json=payload)
@@ -72,13 +73,38 @@ class Bridge:
             if config(self.store)!=c:return
             await call(c['token'],'sendMessage',{'chat_id':c['chat_id'],'text':text[i:i+1800],'link_preview_options':{'is_disabled':True}})
     async def handle(self,c,update):
+        callback=update.get('callback_query')
+        if callback:
+            owner=callback.get('from',{});message=callback.get('message',{})
+            if str(owner.get('id'))!=c['chat_id'] or str(message.get('chat',{}).get('id'))!=c['chat_id'] or message.get('chat',{}).get('type')!='private':return
+            await call(c['token'],'answerCallbackQuery',{'callback_query_id':callback['id']})
+            data=callback.get('data','')
+            if data.startswith('sources:'):
+                try:
+                    _,cid,mid=data.split(':')
+                    with self.store.db() as db:owned=db.execute('SELECT chat_id FROM telegram_state WHERE id=1').fetchone()
+                    if not owned or owned[0]!=cid:return
+                    from .workspace import provenance
+                    refs=provenance(self.store,cid,int(mid))
+                    await self.send(c,'Sources\n'+'\n\n'.join(r.get('label','')+'\n'+r.get('url','') for r in refs) if refs else 'No external sources used.')
+                except (ValueError,KeyError):return
+            return
         msg=update.get('message',{});chat=msg.get('chat',{});sender=msg.get('from',{})
         if chat.get('type')!='private' or str(chat.get('id'))!=c['chat_id'] or str(sender.get('id'))!=c['chat_id'] or sender.get('is_bot'):return
         if time.time()-msg.get('date',0)>300:return # Do not replay stale requests after laptop sleep.
         text=msg.get('text','').strip()
         if not text or len(text)>12000:return
         if text in {'/start','/help'}:
-            await self.send(c,'I’m Nila. Send a message to chat. /new starts a fresh conversation. Keep Nila running on your laptop.');return
+            await self.send(c,'I’m Nila. Send a message to chat. /new starts a fresh conversation. /search off|quick|deep selects web mode. /think low|medium|high selects effort. /status shows your modes. Keep Nila running on your laptop.');return
+        parts=text.lower().split()
+        if parts[0] in {'/search','/think','/status'}:
+            mode=c.get('search_mode','off');level=c.get('thinking_level','medium')
+            if parts[0]=='/search' and len(parts)==2 and parts[1] in {'off','quick','deep'}:mode=parts[1]
+            elif parts[0]=='/think' and len(parts)==2 and parts[1] in {'low','medium','high'}:level=parts[1]
+            elif parts[0]!='/status':await self.send(c,'Use /search off|quick|deep or /think low|medium|high');return
+            c=c|{'search_mode':mode,'thinking_level':level}
+            with self.store.db() as db:db.execute("UPDATE secrets SET value=? WHERE name='telegram'",(self.store.seal(json.dumps(c)),))
+            await self.send(c,f'Web: {mode} · Thinking: {level}');return
         with self.store.db() as db:r=db.execute('SELECT chat_id FROM telegram_state WHERE id=1').fetchone()
         cid=r[0] if r else None
         try:
@@ -89,12 +115,41 @@ class Bridge:
             with self.store.db() as db:db.execute('UPDATE telegram_state SET chat_id=? WHERE id=1',(cid,))
         if text=='/new':await self.send(c,'New conversation ready.');return
         self.state('Thinking')
-        await call(c['token'],'sendChatAction',{'chat_id':c['chat_id'],'action':'typing'})
-        answer=''
+        started=time.monotonic();stage='Thinking';indicator=None
         try:
-            async for part in reply(self.store,cid,text,learn_memory=False,personal_context=c.get('share_memory',False)):answer+=part
+            indicator=await call(c['token'],'sendMessage',{'chat_id':c['chat_id'],'text':'Nila is thinking…'})
+        except TelegramError:pass
+        async def animate():
+            dots=0
+            while config(self.store)==c:
+                try:
+                    await call(c['token'],'sendChatAction',{'chat_id':c['chat_id'],'action':'typing'})
+                    if indicator:
+                        dots=dots%3+1
+                        await call(c['token'],'editMessageText',{'chat_id':c['chat_id'],'message_id':indicator['message_id'],'text':f'Nila · {stage}'+'.'*dots+f' · {int(time.monotonic()-started)}s'})
+                except TelegramError:pass
+                await asyncio.sleep(4)
+        def progress(value):
+            nonlocal stage
+            stage=value
+        animation=asyncio.create_task(animate());answer=''
+        try:
+            async for part in reply(self.store,cid,text,learn_memory=c.get('share_memory',False),personal_context=c.get('share_memory',False),search_mode=c.get('search_mode','off'),thinking_level=c.get('thinking_level','medium'),progress=progress):answer+=part
         except (NilaError,RuntimeError):answer='Nila could not answer right now. Check Ollama on your laptop or wait for the current local request to finish.'
-        await self.send(c,answer or 'No answer was generated. Try again.')
+        finally:
+            animation.cancel()
+            with suppress(asyncio.CancelledError):await animation
+        if config(self.store)!=c:return
+        if indicator:
+            with suppress(TelegramError):await call(c['token'],'editMessageText',{'chat_id':c['chat_id'],'message_id':indicator['message_id'],'text':f'Answered in {int(time.monotonic()-started)}s'})
+        from .terminal import plain_text
+        rendered=plain_text(answer or 'No answer was generated. Try again.')
+        messages=self.store.chat(cid)['messages'];mid=messages[-1]['id'] if messages else 0
+        for offset in range(0,len(rendered),1800):
+            if config(self.store)!=c:return
+            payload={'chat_id':c['chat_id'],'text':rendered[offset:offset+1800],'link_preview_options':{'is_disabled':True}}
+            if offset+1800>=len(rendered) and mid:payload['reply_markup']={'inline_keyboard':[[{'text':'Sources','callback_data':f'sources:{cid}:{mid}'}]]}
+            await call(c['token'],'sendMessage',payload)
     async def loop(self):
         ensure(self.store)
         while True:
@@ -119,7 +174,7 @@ class Bridge:
                 while config(self.store)==c:
                     with self.store.db() as db:offset=db.execute('SELECT offset FROM telegram_state WHERE id=1').fetchone()[0]
                     self.state('Connected')
-                    updates=await call(c['token'],'getUpdates',{'offset':offset,'timeout':20,'limit':10,'allowed_updates':['message']})
+                    updates=await call(c['token'],'getUpdates',{'offset':offset,'timeout':20,'limit':10,'allowed_updates':['message','callback_query']})
                     for update in updates:
                         if config(self.store)!=c:break
                         # Record before generation to avoid duplicate replies after restart.

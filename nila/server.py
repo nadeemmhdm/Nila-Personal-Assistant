@@ -14,6 +14,8 @@ from .storage import Store
 from .engine import models, reply, NilaError
 
 class Settings(BaseModel):
+    goals: str = Field(default="",max_length=1000)
+    response_style: Literal["Concise","Balanced","Detailed"] = "Balanced"
     thinking_level: Literal["low","medium","high"] = "medium"
     memory_review: bool = True
     setup_complete: bool = False
@@ -107,6 +109,8 @@ def create_app(store=None):
     def scope(cid):return temporary.get(cid,store)
     from .workspace_api import register as workspace_routes
     workspace_routes(app,store,scope,running)
+    from .skills import register as skill_routes
+    skill_routes(app,store)
     register(app,store,None)
     from .learning_api import register as register_learning
     lab=register_learning(app,store)

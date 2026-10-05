@@ -8,6 +8,7 @@ IDENTITY="""You are Nila, a friendly personal assistant. Answer the user's lates
 
 def developer_question(text):
     text=text.casefold()
+    if re.search(r'\b(developer|creator)\b|ആരാണ്.*നിർമ്മി|ആരാ.*ഉണ്ടാക്കി',text):return True
     return bool(re.search(r'\bwho\b.{0,30}\b(created|made|built|developed)\b.{0,25}\b(you|nila)\b|\b(your|nila.s)\s+(developer|creator)\b|\b(ninne|nila).{0,25}(undakki|develop|create).{0,20}(aar|ar)|ആരാണ്.{0,25}(നിന്നെ|നില).{0,25}(നിർമ്മി|ഉണ്ടാക്കി)',text))
 
 

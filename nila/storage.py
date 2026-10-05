@@ -11,7 +11,7 @@ from pathlib import Path
 from platformdirs import user_data_dir
 from .vault import Vault, PREFIX
 
-DEFAULTS = {'assistant_name':'Nila','user_name':'','model':'llama3.2:1b','language':'Auto','temperature':.7,'num_ctx':2048,'memory_enabled':True,'auto_memory':True,'auto_update':True,'description':'','position':'Other','completion_year':'','company':'','job_role':'','knowledge_enabled':True,'course':'','interests':'','tone':'Friendly','memory_review':True,'setup_complete':False,'thinking_level':'medium'}
+DEFAULTS = {'assistant_name':'Nila','user_name':'','model':'llama3.2:1b','language':'Auto','temperature':.7,'num_ctx':2048,'memory_enabled':True,'auto_memory':True,'auto_update':True,'description':'','position':'Other','completion_year':'','company':'','job_role':'','knowledge_enabled':True,'course':'','interests':'','tone':'Friendly','memory_review':True,'setup_complete':False,'thinking_level':'medium','goals':'','response_style':'Balanced'}
 
 class Store:
     def __init__(self,root=None,ephemeral=False):
@@ -100,7 +100,12 @@ class Store:
             mid=db.execute('INSERT INTO messages(chat_id,role,content,status) VALUES (?,?,?,?)',(cid,role,self.seal(content),status)).lastrowid
             db.execute('UPDATE chats SET updated=? WHERE id=?',(time.time(),cid))
             count=db.execute("SELECT COUNT(*) FROM messages WHERE chat_id=? AND role='user'",(cid,)).fetchone()[0]
-            if role=='user' and count==1: db.execute('UPDATE chats SET title=? WHERE id=?',(self.seal(content[:65]),cid))
+            if role=='assistant' and status=='complete' and content.strip():
+                answers=db.execute("SELECT COUNT(*) FROM messages WHERE chat_id=? AND role='assistant'",(cid,)).fetchone()[0]
+                if answers==1:
+                    import re
+                    title=re.sub(r'[#*_`+\[\]]','',content).strip().splitlines()[0][:65]
+                    db.execute('UPDATE chats SET title=? WHERE id=?',(self.seal(title),cid))
             return mid
     def delete_chat(self,cid):
         with self.db() as db: db.execute('DELETE FROM chats WHERE id=?',(cid,))
@@ -159,7 +164,7 @@ class Store:
             db.execute('DELETE FROM messages WHERE chat_id=? AND id>?',(cid,mid))
             db.execute("UPDATE messages SET content=?,status='complete' WHERE id=?",(self.seal(content),mid))
             first=db.execute("SELECT id FROM messages WHERE chat_id=? AND role='user' ORDER BY id LIMIT 1",(cid,)).fetchone()
-            if first and first[0]==mid: db.execute('UPDATE chats SET title=? WHERE id=?',(self.seal(content[:65]),cid))
+            if first and first[0]==mid: db.execute('UPDATE chats SET title=? WHERE id=?',(self.seal('New conversation'),cid))
             db.execute('UPDATE chats SET updated=? WHERE id=?',(time.time(),cid))
 
     def feedback(self,cid,mid,rating,reason=''):

@@ -186,3 +186,15 @@ def register(app,store,scope,running):
     def telegram_remove():
         from .telegram_bot import disable
         return disable(store,True)
+
+    @app.get('/api/chats/{cid}/attachments')
+    def attachments(cid:str):
+        selected=scope(cid);selected.chat(cid)
+        with selected.db() as db:
+            return [{'id':r['id'],'name':selected.open(r['name'])} for r in db.execute('SELECT d.id,d.name FROM documents d JOIN chat_documents c ON c.document_id=d.id WHERE c.chat_id=?',(cid,))]
+    @app.delete('/api/chats/{cid}/attachments/{iid}')
+    def detach(cid:str,iid:str):
+        if cid in running:raise HTTPException(409,'Wait for the current answer')
+        selected=scope(cid);selected.chat(cid)
+        with selected.db() as db:db.execute('DELETE FROM chat_documents WHERE chat_id=? AND document_id=?',(cid,iid))
+        return {'ok':True}

@@ -1,4 +1,4 @@
-"""Commit-based Windows updates from the fixed upstream; no release dependency."""
+"""Stable GitHub Release updates, pinned to the release tag commit."""
 import hashlib
 import json
 import os
@@ -31,10 +31,14 @@ def check():
     state=installed()
     try:
         with httpx.Client(timeout=10,follow_redirects=False,headers={'User-Agent':'Nila-Updater','Accept':'application/vnd.github+json'}) as c:
-            r=c.get(API+'/commits/main');r.raise_for_status();data=r.json()
-            sha=data['sha']
+            r=c.get(API+'/releases/latest');r.raise_for_status();release=r.json()
+            tag=release['tag_name']
+            if release.get('draft') or release.get('prerelease') or not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+',tag):raise ValueError('Invalid stable release')
+            r=c.get(API+'/commits/'+tag);r.raise_for_status();sha=r.json()['sha']
+            from . import __version__
+            newer=tuple(map(int,tag[1:].split('.')))>tuple(map(int,__version__.split('.')))
             if not re.fullmatch('[a-f0-9]{40}',sha): raise ValueError('Invalid commit')
-        return state|{'latest':sha,'available':sha!=state['commit'],'online':True,'message':'Latest main-branch commit checked. Updates are applied to the next launch.'}
+        return state|{'latest':sha,'version':tag,'available':newer and sha!=state['commit'],'online':True,'message':'Latest stable GitHub Release checked. Updates take effect on restart.'}
     except (httpx.HTTPError,ValueError,KeyError):
         return state|{'online':False,'available':False,'message':'Update check unavailable. Offline features remain available.'}
 
@@ -53,7 +57,7 @@ def update_failure(log, root):
             'The update was not activated. Ask the device/policy administrator to review '
             'CodeIntegrity events and approve a trusted build, or use a properly signed '
             'distribution accepted by that policy. Nila does not disable security controls.'}
-    return result | {'message':'Update build failed; current installation retained. See last-update.log in NilaApp.'}
+    return result | {'message':'Release installation failed; current installation retained. See last-update.log in NilaApp.'}
 
 def apply_update():
     if not _lock.acquire(blocking=False): return {'status':'busy','message':'Update already running.'}
@@ -65,15 +69,15 @@ def apply_update():
         sha=state['latest']
         with httpx.Client(timeout=30,follow_redirects=False,headers={'User-Agent':'Nila-Updater'}) as c:
             # Verify installer bytes against the Git blob of the selected immutable commit.
-            meta=c.get(API+'/contents/scripts/install.ps1',params={'ref':sha});meta.raise_for_status()
-            raw=c.get(f'https://raw.githubusercontent.com/{REPO}/{sha}/scripts/install.ps1');raw.raise_for_status()
+            meta=c.get(API+'/contents/scripts/update-release.ps1',params={'ref':sha});meta.raise_for_status()
+            raw=c.get(f'https://raw.githubusercontent.com/{REPO}/{sha}/scripts/update-release.ps1');raw.raise_for_status()
             data=raw.content
             if len(data)>100000 or hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()!=meta.json()['sha']:
                 raise RuntimeError('NILA-020: Installer integrity check failed')
         root=Path(state['root']);fd,name=tempfile.mkstemp(prefix='nila-update-',suffix='.ps1',dir=root)
         with os.fdopen(fd,'wb') as f:f.write(data)
         try:
-            result=subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',name,'-Commit',sha,'-UpdateOnly'],capture_output=True,text=True,timeout=1800,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+            result=subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',name,'-Commit',sha,'-ReleaseTag',state['version'],'-UpdateOnly'],capture_output=True,text=True,timeout=1800,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
             log=(result.stdout+'\n'+result.stderr)[-16000:]
             (root/'last-update.log').write_text(log,encoding='utf-8')
             if result.returncode: return update_failure(log,root)

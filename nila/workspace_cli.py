@@ -3,6 +3,7 @@ import asyncio,getpass,json,os
 from pathlib import Path
 
 def add_parsers(sub):
+    p=sub.add_parser('skills',help='List, import or select local Markdown skills');p.add_argument('action',nargs='?',default='list',choices=['list','add','use','off','remove']);p.add_argument('value',nargs='?')
     p=sub.add_parser('telegram',help='Configure encrypted Telegram private-chat access');p.add_argument('action',choices=['setup','status','test','disable','remove'])
     sub.add_parser('setup',help='Check requirements and choose a model')
     sub.add_parser('brief',help='Show local workspace counts')
@@ -20,13 +21,22 @@ def add_parsers(sub):
     p=sub.add_parser('feedback-list',help='Inspect, clear or reset local feedback');p.add_argument('--clear',type=int);p.add_argument('--reset',action='store_true')
 
 
-COMMANDS={'telegram','setup','brief','mini','rollback','regenerate','branch','sources','backup','restore','inbox','projects','documents','feedback-list'}
+COMMANDS={'skills','telegram','setup','brief','mini','rollback','regenerate','branch','sources','backup','restore','inbox','projects','documents','feedback-list'}
 
 def execute(args,store):
     from . import workspace as ws
     def show(value):print(json.dumps(value,ensure_ascii=False,indent=2))
     c=args.command
-    if c=='telegram':
+    if c=='skills':
+        from . import skills
+        if args.action=='list':show(skills.listing(store))
+        elif args.action=='add':
+            path=Path(args.value or '');show({'id':skills.save(store,path.name,path.read_text(encoding='utf-8'))})
+        elif args.action in {'use','off'}:skills.enable(store,args.value,args.action=='use');print('Skill selection updated.')
+        elif args.action=='remove':
+            skills.ensure(store)
+            with store.db() as db:db.execute('DELETE FROM custom_skills WHERE id=?',(args.value,))
+    elif c=='telegram':
         from . import telegram_bot as tg
         if args.action=='setup':
             token=getpass.getpass('Bot token (hidden): ');chat_id=input('Your private numeric Telegram chat ID: ').strip()

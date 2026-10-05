@@ -11,7 +11,7 @@ console=Console(highlight=False)
 
 def prepared(text):
     # Rich has no Markdown underline extension: render underline markers as emphasis.
-    return re.sub(r'\+\+([^+\n]+)\+\+',r'**\1**',text)
+    return re.sub(r'\+\+([^+]+)\+\+',r'**\1**',text)
 
 def plain_text(text):
     out=io.StringIO();c=Console(file=out,color_system=None,width=10000,highlight=False)

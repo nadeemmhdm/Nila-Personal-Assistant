@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { Workspace, ChatWorkspace } from "./Workspace";
+import { VoiceInput, speak } from "./Voice";
 import { RichText } from "./RichText";
 import {
   FileText,
@@ -62,6 +63,8 @@ type Settings = {
   company: string;
   job_role: string;
   knowledge_enabled: boolean;
+  goals: string;
+  response_style: string;
   course: string;
   interests: string;
   tone: string;
@@ -110,6 +113,8 @@ const defaults: Settings = {
   company: "",
   job_role: "",
   knowledge_enabled: true,
+  goals: "",
+  response_style: "Balanced",
   course: "",
   interests: "",
   tone: "Friendly",
@@ -185,12 +190,18 @@ function App() {
   const [feedbackRating, setFeedbackRating] = useState(0);
   const [regenerateBox,setRegenerateBox]=useState<number|null>(null),[regenerateText,setRegenerateText]=useState(""),[regenerating,setRegenerating]=useState<number|null>(null);
   const [sidebarHidden,setSidebarHidden]=useState(false),[historyView,setHistoryView]=useState(false);
-  const [followupQuestions,setFollowupQuestions]=useState<string[]>([]),[attachmentNames,setAttachmentNames]=useState<string[]>([]);
+  const [followupQuestions,setFollowupQuestions]=useState<string[]>([]),[attachmentNames,setAttachmentNames]=useState<{id:string;name:string}[]>([]),[uploading,setUploading]=useState(false);
   const fileInput=useRef<HTMLInputElement>(null);
   const [confirmation,setConfirmation]=useState<{message:string;resolve:(v:boolean)=>void}|null>(null);
   const confirmAction=(message:string)=>new Promise<boolean>(resolve=>setConfirmation({message,resolve}));
   const [progress,setProgress]=useState(""),[started,setStarted]=useState(0),[elapsed,setElapsed]=useState(0);
   const [sources,setSources]=useState<{id:number;items:any[]}|null>(null);
+  const sourceTicket=useRef(0);
+  useEffect(()=>{const close=(e:Event)=>{if(e instanceof KeyboardEvent ? e.key==='Escape' : !(e.target instanceof Element&&e.target.closest('[data-source-region]'))){sourceTicket.current++;setSources(null)}};document.addEventListener('pointerdown',close);document.addEventListener('keydown',close);return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',close)}},[]);
+  useEffect(()=>{sourceTicket.current++;let live=true;if(chat?.id)api<{id:string;name:string}[]>(`/chats/${chat.id}/attachments`).then(v=>{if(live)setAttachmentNames(v)}).catch(()=>{});return()=>{live=false}},[chat?.id]);
+  async function toggleSources(mid:number){if(sources?.id===mid){sourceTicket.current++;setSources(null);return}const ticket=++sourceTicket.current;setSources({id:mid,items:[]});try{const items=await api<any[]>(`/chats/${chat!.id}/messages/${mid}/sources`);if(ticket===sourceTicket.current)setSources({id:mid,items})}catch(e){if(ticket===sourceTicket.current){setSources(null);fail(e)}}}
+  async function removeAttachment(id:string){if(!chat)return;try{await api(`/chats/${chat.id}/attachments/${id}`,'DELETE');setAttachmentNames(v=>v.filter(x=>x.id!==id))}catch(e){fail(e)}}
+
   const [brief,setBrief]=useState<any>(null);
   const mini=new URLSearchParams(location.search).has("mini");
   useEffect(()=>{const handler=(e:KeyboardEvent)=>{if(e.ctrlKey&&e.shiftKey&&e.code==='Space'){e.preventDefault();window.open('/?mini=1','nila-mini','popup,width=460,height=700')}};window.addEventListener('keydown',handler);return ()=>window.removeEventListener('keydown',handler)},[]);
@@ -306,7 +317,9 @@ function App() {
     }
   }
   async function send(text = input, editMessageId: number | null = null, approved=false, regenerateId:number|null=null, instruction="") {
-    if (sendLock.current || !text.trim()) return;
+    if (sendLock.current || uploading) return;
+    if(!text.trim()&&attachmentNames.length)text="Summarize the attached files: "+attachmentNames.map(x=>x.name).join(", ");
+    if(!text.trim())return;
 
     selection.current++;
     sendLock.current = true;
@@ -399,14 +412,14 @@ function App() {
     }
   }
   async function attachFile(file:File){
-    setError('');setNotice('Reading file locally…');
+    setError('');setUploading(true);setNotice('Reading file locally…');
     try{
       if(file.size>5*1024*1024)throw Error('File limit: 5 MB');
       let active=chat;if(!active){active=await api<Chat>('/chats','POST');setChat(active);}
       const data=await new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=reject;r.readAsDataURL(file)});
-      await api(`/chats/${active.id}/attachments`,'POST',{name:file.name,data});
-      setAttachmentNames(n=>[...n,file.name]);notify('File attached. Ask a question about it.');await refreshChats();
-    }catch(e){fail(e);setNotice('')}
+      const attachment=await api<{id:string;name:string}>(`/chats/${active.id}/attachments`,'POST',{name:file.name,data});
+      setAttachmentNames(n=>[...n.filter(x=>x.id!==attachment.id),attachment]);notify('File attached. Ask a question about it.');await refreshChats();
+    }catch(e){fail(e);setNotice('')}finally{setUploading(false)}
   }
   async function stop() {
     if (requestChat.current)
@@ -817,7 +830,7 @@ function App() {
                         )}
                       </div>
                       <div className="message-body">
-                        <div className="message-meta">
+                        <div className="message-bubble"><div className="message-meta">
                           {m.role === "assistant"
                             ? settings.assistant_name
                             : "You"}
@@ -860,12 +873,13 @@ function App() {
                             </div>
                           </div>
                         )}
+                        </div>
                         {m.role==='assistant'&&<div className="response-tools">
                           <button className="icon" aria-label="Regenerate response" title="Regenerate response" disabled={busy} onClick={()=>{setRegenerateBox(m.id);setRegenerateText('')}}><RefreshCw size={15}/></button>
-                          <button disabled={busy} onClick={async()=>{try{setSources({id:m.id,items:await api<any[]>(`/chats/${chat!.id}/messages/${m.id}/sources`)})}catch(e){fail(e)}}}><Globe size={14}/>Sources & context</button>
+                          <button data-source-region aria-expanded={sources?.id===m.id} disabled={busy} onClick={()=>toggleSources(m.id)}><Globe size={14}/>Sources</button><button onClick={()=>{try{speak(m.content)}catch(e){fail(e)}}}>Read aloud</button>
                         </div>}
                         {regenerateBox===m.id&&<div className="edit-prompt"><label>What should change? (optional)<textarea aria-label="Regeneration instructions" maxLength={2000} value={regenerateText} onChange={e=>setRegenerateText(e.target.value)} placeholder="e.g. Correct the second example, or explain in simpler words"/></label><small>Only this answer is regenerated locally, in the same place. The original conversation is saved as a branch; later turns move there. If stopped or failed, your original stays. No new web query is sent.</small><div><button disabled={busy} onClick={()=>send('Regenerate this response',null,true,m.id,regenerateText)}>Regenerate answer</button><button onClick={()=>setRegenerateBox(null)}>Cancel</button></div></div>}
-                        {sources?.id===m.id&&<div className="source-explanation"><strong>Context supplied to this answer</strong><p>This shows supplied references, not proof of the model's reasoning or factual accuracy.</p>{sources.items.length?sources.items.map((source,i)=><div key={i}><b>{source.kind}</b> · {source.label}{source.page?` · page ${source.page}`:''}{source.url&&<a href={source.url} target="_blank" rel="noreferrer">Open source</a>}</div>):<p>No recorded references for this answer.</p>}<button onClick={()=>setSources(null)}>Close references</button></div>}
+                        {sources?.id===m.id&&<div className="source-explanation" data-source-region><strong>Context supplied to this answer</strong><p>This shows supplied references, not proof of the model's reasoning or factual accuracy.</p>{sources.items.length?sources.items.map((source,i)=><div key={i}><b>{source.kind}</b> · {source.label}{source.page?` · page ${source.page}`:''}{source.url&&<a href={source.url} target="_blank" rel="noreferrer">Open source</a>}</div>):<p>No recorded references for this answer.</p>}<button onClick={()=>{sourceTicket.current++;setSources(null)}}>Close references</button></div>}
                         <div className="message-actions">
                           <button
                             className="icon"
@@ -993,12 +1007,12 @@ function App() {
                     }
                   }}
                 />
-                {attachmentNames.length>0&&<div className="attachment-chips">{attachmentNames.map((n,i)=><span key={i}><FileText size={12}/>{n}</span>)}</div>}
+                {attachmentNames.length>0&&<div className="attachment-chips">{attachmentNames.map(n=><span key={n.id}><FileText size={12}/>{n.name}<button type="button" aria-label={"Remove "+n.name} disabled={busy||uploading} onClick={()=>removeAttachment(n.id)}><X size={12}/></button></span>)}</div>}
                 <div className="composer-bottom">
                   <div className="composer-tools">
-                    <button type="button" className="icon" aria-label="Attach file" disabled={busy} onClick={()=>fileInput.current?.click()}><Paperclip size={17}/></button>
+                    <button type="button" className="icon" aria-label="Attach file" disabled={busy||uploading} onClick={()=>fileInput.current?.click()}><Paperclip size={17}/></button>
                     <input ref={fileInput} type="file" hidden accept=".pdf,.txt,.md,.csv,.json,.py,.js,.ts,.html,.css" onChange={e=>{const f=e.target.files?.[0];if(f)void attachFile(f);e.target.value=''}}/>
-                    <select aria-label="Search mode" value={searchMode} disabled={busy} onChange={e=>setSearchMode(e.target.value)}><option value="off">Web off</option><option value="quick">Quick search</option><option value="deep">Deep search</option></select>
+                    <VoiceInput disabled={busy||uploading} onText={text=>setInput(v=>(v+" "+text).trim())} onError={message=>setError(message)}/><select aria-label="Search mode" value={searchMode} disabled={busy} onChange={e=>setSearchMode(e.target.value)}><option value="off">Web off</option><option value="quick">Quick search</option><option value="deep">Deep search</option></select>
                     <select aria-label="Thinking level" value={settings.thinking_level} disabled={busy} onChange={async e=>{const thinking_level=e.target.value as Settings['thinking_level'];try{const s=await api<Settings>('/settings','PUT',{...await api<Settings>('/settings'),thinking_level});setSettings(s);setDraft(s)}catch(err){fail(err)}}}><option value="low">Think · Low</option><option value="medium">Think · Medium</option><option value="high">Think · High</option></select>
                     <select aria-label="Local model" value={settings.model} disabled={busy} onChange={async e=>{try{const s=await api<Settings>('/settings','PUT',{...await api<Settings>('/settings'),model:e.target.value});setSettings(s);setDraft(s);await refreshStatus()}catch(err){fail(err)}}}>{!(status?.models||[]).some(m=>m.name===settings.model)&&<option value={settings.model}>{settings.model}</option>}{status?.models.map(m=><option key={m.name} value={m.name}>{m.name}</option>)}</select>
                   </div>
@@ -1017,7 +1031,7 @@ function App() {
                       <button
                         className="send"
                         aria-label="Send message"
-                        disabled={!input.trim()}
+                        disabled={uploading||(!input.trim()&&!attachmentNames.length)}
                       >
                         <ArrowUp size={20} />
                       </button>
@@ -1357,7 +1371,7 @@ function App() {
                     Keep your encryption key and protect your device account.
                   </p>
                 </div>
-                <label className="check-label panel">
+                <div className="panel"><h2>Personal response preferences</h2><label>Your goals<textarea maxLength={1000} value={draft.goals||""} onChange={e=>setDraft({...draft,goals:e.target.value})} placeholder="What would you like Nila to help you achieve?"/></label><label>Answer detail<select value={draft.response_style||"Balanced"} onChange={e=>setDraft({...draft,response_style:e.target.value})}><option>Concise</option><option>Balanced</option><option>Detailed</option></select></label><small>Used locally when relevant. These preferences are never passed to Gemini Learning Lab.</small></div><label className="check-label knowledge-preference">
                   <input
                     type="checkbox"
                     checked={draft.knowledge_enabled}

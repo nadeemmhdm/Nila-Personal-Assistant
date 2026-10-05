@@ -49,7 +49,7 @@ def parser():
     kb.add_argument("id",nargs="?")
     kb.add_argument("--text")
     sub.add_parser("worker",help="Run offline scheduled tasks until stopped")
-    update = sub.add_parser("update",help="Check or install main-branch updates")
+    update = sub.add_parser("update",help="Check or install stable GitHub Releases")
     update.add_argument("--check",action="store_true")
     update.add_argument("--auto",action="store_true",help=argparse.SUPPRESS)
     svc=sub.add_parser("service",help="Control the Windows login worker")
@@ -200,7 +200,7 @@ def main():
     if hasattr(sys.stdout,"reconfigure"): sys.stdout.reconfigure(encoding="utf-8")
     argv=sys.argv[1:]
     if argv == ["version"]:argv=["--version"]
-    if argv and argv[0]=="updatw":parser().error("Unknown command updatw. Use: nila update")
+    if argv and argv[0] in {"updatw","upadte","udpate"}:argv[0]="update"
     if argv and argv[0] in {'recover'}:
         print('Notes, tasks and automation features have been removed.',file=sys.stderr);raise SystemExit(1)
     known={'ask','chat','web','worker','update','service','pull','doctor','models','model','history','delete','export','settings','memory','gemini','learn','knowledge','feedback'}

@@ -2,7 +2,7 @@
 
 ## Supported scope
 
-Nila 0.5.x is a single-user, local-first assistant. Use the latest main-branch build and review changes before deploying it in a sensitive environment. Nila is not a hardened multi-tenant service.
+Nila 0.6.x is a single-user, local-first assistant. Use the latest stable release and review changes before deploying it in a sensitive environment. Nila is not a hardened multi-tenant service.
 
 ## Data protection
 
@@ -42,7 +42,7 @@ Portable backups use Scrypt-derived Fernet encryption and require a password. Re
 
 ## Installer and update trust
 
-The installer is downloaded from this repository. It uses WinGet for prerequisites and builds a standalone binary locally. Repository downloads are pinned to a commit and source files are checked against Git blob hashes. Automatic updates follow `main`, not releases. HTTPS, the repository owner, package registries and installed build dependencies are trusted. This is not a publisher-signature system.
+The installer is downloaded from this repository. It uses WinGet for prerequisites and builds a standalone binary locally. Repository downloads are pinned to a commit and source files are checked against Git blob hashes. Automatic updates follow stable releases, verify the GitHub asset SHA-256 digest and smoke-test the executable under the shared installer lock before activation. HTTPS, the repository owner, package registries and installed build dependencies are trusted. This is not a publisher-signature system.
 
 Installations are staged; the active pointer is switched only after a new binary starts successfully. Existing processes are not hot-patched. App versions and personal data have separate directories. The Windows login task runs under the signed-in user at limited privilege. Windows may request elevation when installing a prerequisite; the assistant does not run a general elevated command agent.
 
@@ -69,3 +69,5 @@ DDGS receives only a user-supplied search query or the current message when Quic
 Current feedback controls save only thumbs up/down. Legacy feedback reasons remain encrypted; ratings and associated message IDs are metadata. Local chat context uses bounded examples/guidance; votes are not authoritative corrections and do not fine-tune the model. Clearing a vote removes its guidance, and deleting a chat or truncating a branch cascades to associated feedback.
 
 The Learning Lab local-model prompt is isolated from ordinary chat context, including retrieved feedback and web-search history. Its outbound review client accepts only a key and explicit study-session data, with no Store access. Extra session fields (including memory-inclusion flags) are rejected. Tests seed private profile, memory, notes, conversations and feedback and check both local-Lab and Gemini HTTP payloads. Content explicitly pasted into the study topic/description is still sent with the user's session consent.
+
+Custom Markdown skills are encrypted local instructions and cannot grant execution privileges. Telegram excludes them when personal context is disabled. Cached public evidence is dated, unverified and deletable. Neither feature is passed to Gemini Learning Lab. Voice input requires on-device browser recognition; no automatic cloud fallback is used.

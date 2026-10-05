@@ -6,22 +6,19 @@ function underline() {
   return (tree: any) => {
     function walk(node: any) {
       if (!node.children || ["code", "inlineCode"].includes(node.type)) return;
-      node.children = node.children.flatMap((child: any) => {
-        if (child.type !== "text") {
-          walk(child);
-          return [child];
-        }
-        const parts = child.value.split(/\+\+([^+\n]+)\+\+/g);
-        return parts.map((value: string, i: number) =>
-          i % 2
-            ? {
-                type: "emphasis",
-                data: { hName: "u" },
-                children: [{ type: "text", value }],
-              }
-            : { type: "text", value },
-        );
-      });
+      const tokens:any[]=[];
+      for(const child of node.children){
+        if(child.type!=="text"){walk(child);tokens.push(child);continue}
+        child.value.split(/(\+\+)/g).forEach((value:string)=>{if(value)tokens.push(value==='++'?{type:'underlineDelimiter'}:{type:'text',value})});
+      }
+      const result:any[]=[];
+      for(let i=0;i<tokens.length;i++){
+        if(tokens[i].type!=='underlineDelimiter'){result.push(tokens[i]);continue}
+        const end=tokens.findIndex((x:any,j:number)=>j>i&&x.type==='underlineDelimiter');
+        if(end>i+1){result.push({type:'emphasis',data:{hName:'u'},children:tokens.slice(i+1,end)});i=end}
+        else result.push({type:'text',value:'++'});
+      }
+      node.children=result;
     }
     walk(tree);
   };

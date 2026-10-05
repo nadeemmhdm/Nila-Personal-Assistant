@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 — Personal Workspace
+
+See [complete release notes](docs/releases/v0.6.0.md). Stable-release prebuilt updates, Telegram controls, skills, voice, local knowledge cache, persistent attachments, model loading and interface fixes.
+
+### Earlier fixes included
 
 - Handle standalone greetings locally without model/search calls or unrelated profile/history retrieval; retain normal model generation for questions and follow-ups.
 - Shorten chat instructions, include developer attribution only when requested, and clarify that user projects are not the assistant's experiences.

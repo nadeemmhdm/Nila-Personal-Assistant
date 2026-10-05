@@ -34,7 +34,7 @@ def test_search_failure_does_not_destroy_edited_branch(store,monkeypatch):
     cid=store.create_chat()['id'];store.add_message(cid,'user','Old');store.add_message(cid,'assistant','Keep')
     before=store.chat(cid)['messages']
     client=TestClient(create_app(store))
-    result=client.post(f'/api/chats/{cid}/reply',json={'content':'New','edit_message_id':before[0]['id'],'search_mode':'quick'})
+    result=client.post(f'/api/chats/{cid}/reply',json={'content':'Search latest news','edit_message_id':before[0]['id'],'search_mode':'quick'})
     assert 'NILA-020' in result.text and store.chat(cid)['messages']==before
     token=store.acquire();store.release(token)
 
@@ -50,8 +50,9 @@ def test_search_sends_only_explicit_query_and_persists_sources(store,monkeypatch
     assert queries==['public query']
     assert 'PRIVATE_MEMORY' in json.dumps(seen) # stays in local Ollama context only
     assert 'Web evidence' in json.dumps(seen)
-    assert 'https://example.com/evidence' in store.chat(cid)['messages'][-1]['content']
-    assert 'Sources' in result.text
+    last=store.chat(cid)['messages'][-1]
+    assert '### Sources' not in last['content']
+    assert any(x.get("url")=="https://example.com/evidence" for x in client.get(f"/api/chats/{cid}/messages/{last['id']}/sources").json())
 
 def test_edit_regenerates_in_place_cascades_feedback_and_continues(store,monkeypatch):
     seen=mock_ollama(monkeypatch)

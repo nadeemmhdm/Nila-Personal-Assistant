@@ -79,7 +79,12 @@ try {
         if (Test-Path (Join-Path $ollamaPath 'ollama.exe')) { $env:Path += ";$ollamaPath" }
         else { Install-NilaRequirement 'Ollama.Ollama'; $env:Path += ";$ollamaPath" }
     }
-    if (-not $Commit) { $Commit = (Invoke-RestMethod "https://api.github.com/repos/$Repo/commits/main" -Headers $Headers).sha }
+    if (-not $Commit) {
+        $release = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest" -Headers $Headers
+        if ($release.tag_name -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$' -or $release.prerelease -or $release.draft) { throw 'No valid stable release is available.' }
+        $Commit = (Invoke-RestMethod "https://api.github.com/repos/$Repo/commits/$($release.tag_name)" -Headers $Headers).sha
+        Write-Host "Nila: installing $($release.tag_name)..."
+    }
     if ($Commit -notmatch '^[a-f0-9]{40}$') { throw 'Invalid upstream commit.' }
     $Versions = Join-Path $Root 'versions'
     New-Item -ItemType Directory -Force $Versions | Out-Null
@@ -185,5 +190,5 @@ try {
         }
     }
     Write-Host 'Nila is ready. Open a new terminal: nila | nila web | nila doctor'
-    Write-Host 'Updates use main-branch commits. Profile and chat data are preserved.'
+    Write-Host 'Updates use stable GitHub Releases. Profile and chat data are preserved.'
 } finally { if ($Lock) { $Lock.Dispose() } }

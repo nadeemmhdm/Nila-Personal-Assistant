@@ -119,7 +119,7 @@ Notes, tasks and scheduled automations have been removed from active interfaces 
 
 ## Updates and privacy
 
-Managed Windows installations check immutable commits from **main**, not GitHub Releases. Builds use short staging paths, verify source Git blob hashes, and activate only after the binary starts. Restart Nila to use the new version. Failed builds keep the previous version; Versions offers rollback. Disable automatic updates with `nila settings --auto-update off`.
+Managed Windows installations check **stable GitHub Releases**. Updates use a prebuilt Windows executable with GitHub SHA-256 verification and a version smoke check before activation. The initial source installer uses short build paths and verifies Git blob hashes. Restart Nila to use the new version. Failed updates keep the previous version; Versions offers rollback. Disable automatic updates with `nila settings --auto-update off`.
 
 Web runs only on loopback. Do not expose it publicly. Saved content uses authenticated encryption; Windows protects its key with CurrentUser DPAPI. Local account compromise remains outside the protection boundary. Ollama cloud-tagged models are not offline models. See [Security](SECURITY.md), [Troubleshooting](docs/TROUBLESHOOTING.md), [Validation](docs/VALIDATION.md), [Changelog](CHANGELOG.md) and [Contributing](CONTRIBUTING.md).
 
@@ -173,3 +173,11 @@ The server binds to loopback only. Do not publish it through a tunnel or expose 
 ## License
 
 Nila source code is licensed under the [MIT License](LICENSE), copyright 2026 Nadeem Muhammed. Ollama models, Gemini services and third-party dependencies retain their own licenses and terms.
+
+## New in 0.6.0
+
+See [release notes](docs/releases/v0.6.0.md) for stable-release updates, Models and Skills dashboards, offline web-reference caching, Telegram modes, persistent attachments and local browser voice capabilities.
+
+Use **Workspace → Models → Load & use** to switch local models. Import a Markdown skill through **Workspace → Skills → Add skill**. At most one skill is active; it provides instructions, not executable tools. **Workspace → Knowledge** manages dated saved web references.
+
+Voice input is available only where the browser supports on-device recognition with an installed language pack; read-aloud needs an installed local voice. These controls do not send audio to Gemini.

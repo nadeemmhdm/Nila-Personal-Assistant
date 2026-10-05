@@ -31,7 +31,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          foreach ($file in @('scripts/install.ps1', 'scripts/launcher.ps1', 'scripts/setup.ps1')) {
+          foreach ($file in @('scripts/install.ps1', 'scripts/launcher.ps1', 'scripts/setup.ps1', 'scripts/update-release.ps1')) {
             $tokens = $null
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $file), [ref]$tokens, [ref]$errors) | Out-Null
@@ -49,3 +49,31 @@ jobs:
         with:
           name: nila-${{ runner.os }}
           path: dist/nila*
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Publish tested stable version once
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; leaving it unchanged."
+            exit 0
+          fi
+          cp artifacts/nila-Windows/nila.exe nila-Windows.exe
+          cp artifacts/nila-Linux/nila nila-Linux
+          sha256sum nila-Windows.exe nila-Linux > SHA256SUMS
+          gh release create "$tag" nila-Windows.exe nila-Linux SHA256SUMS --target "$GITHUB_SHA" --title "Nila $version — Personal Workspace" --notes-file docs/releases/v0.6.0.md

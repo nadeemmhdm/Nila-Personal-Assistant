@@ -25,7 +25,9 @@ def test_telegram_private_authorization_encryption_and_disable(tmp_path,monkeypa
         await b.handle(c,update(456));await b.handle(c,update(kind='group'))
         assert not sent and not prompts
         await b.handle(c,update())
-        assert prompts==[('Hi',{'learn_memory':False,'personal_context':False})]
+        assert prompts[0][0]=='Hi'
+        assert prompts[0][1]['personal_context'] is False
+        assert prompts[0][1]['search_mode']=='off'
         assert all(p['chat_id']=='123' for m,p in sent)
         assert sent[-1][1]['text']=='Hello'
         tg.disable(s);before=len(sent);await b.send(c,'must not send');assert len(sent)==before

@@ -4,6 +4,13 @@ from cryptography.fernet import Fernet,InvalidToken
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 FIELDS={'settings':['value'],'projects':['name','instructions'],'chats':['title'],'messages':['content'],'memories':['content'],'notes':['content'],'tasks':['content'],'feedback':['reason'],'forgotten':[],'automations':['title','prompt'],'runs':['output'],'chat_meta':[],'documents':['name','pages'],'chat_documents':[],'memory_inbox':['content'],'answer_sources':['content'],'job_policy':[],'learning_sessions':['config','error'],'learning_messages':['content'],'knowledge':['topic','content']}
+FIELDS.update({'custom_skills':['name','content'],'web_knowledge':['payload']})
+
+def ensure_extra(store):
+    from .skills import ensure as skills
+    from .knowledge_cache import ensure as cache
+    skills(store);cache(store)
+
 MAGIC=b'NILABACKUP1\0'
 MAX=20*1024*1024
 
@@ -14,7 +21,7 @@ def cipher(password,salt):
 
 def export_backup(store,password):
     from .learning import ensure
-    ensure(store);tables={}
+    ensure(store);ensure_extra(store);tables={}
     with store.db() as db:
         db.execute('BEGIN')
         for name,fields in FIELDS.items():tables[name]=[store.decode(row,fields) for row in db.execute('SELECT * FROM '+name)]
@@ -28,9 +35,10 @@ def read_backup(store,raw,password):
     salt=raw[len(MAGIC):len(MAGIC)+16]
     try:data=json.loads(cipher(password,salt).decrypt(raw[len(MAGIC)+16:]))
     except (InvalidToken,ValueError,UnicodeError):raise ValueError('Incorrect password or damaged backup') from None
-    if data.get('format')!=1 or set(data.get('tables',{}))!=set(FIELDS):raise ValueError('Backup format is incompatible with this version')
+    if data.get('format')!=1 or not set(data.get('tables',{})).issubset(set(FIELDS)) or not (set(FIELDS)-{'custom_skills','web_knowledge'}).issubset(set(data.get('tables',{}))):raise ValueError('Backup format is incompatible with this version')
     from .learning import ensure
-    ensure(store)
+    ensure(store);ensure_extra(store)
+    for name in ('custom_skills','web_knowledge'):data['tables'].setdefault(name,[])
     total=0
     with store.db() as db:
         for name,rows in data['tables'].items():

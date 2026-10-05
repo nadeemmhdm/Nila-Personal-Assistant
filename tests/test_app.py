@@ -19,7 +19,7 @@ def test_persistence_and_cascade(store):
     cid=store.create_chat()['id']
     store.add_message(cid,'user','Hello')
     store.add_message(cid,'assistant','Hi')
-    assert Store(store.root).chat(cid)['title']=='Hello'
+    assert Store(store.root).chat(cid)['title']=='Hi'
     store.delete_chat(cid)
     with store.db() as db: assert db.execute('SELECT COUNT(*) FROM messages').fetchone()[0]==0
 

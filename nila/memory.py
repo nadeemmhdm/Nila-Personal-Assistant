@@ -12,7 +12,7 @@ async def learn(store,text):
     settings=store.settings()
     if not settings['memory_enabled'] or not settings['auto_memory'] or SENSITIVE.search(text): return []
     # Questions, pasted documents, and long messages are deliberately not mined.
-    if len(text)>1200 or '?' in text or not re.search(r'\b(I|my|I’m|I\'m)\b|ഞാൻ|എന്റെ|എനിക്ക്',text,re.I): return []
+    if len(text)>1200 or '?' in text or not re.search(r'\b(I|my|I’m|I\'m)\b|\b(jane|njaan|ente|enikku|enike)\b|ഞാൻ|എന്റെ|എനിക്ക്',text,re.I): return []
     from .engine import ollama_url
     try:
         async with asyncio.timeout(20):
@@ -25,7 +25,7 @@ async def learn(store,text):
             category=fact.get('category');value=fact.get('value','').strip();evidence=fact.get('evidence','').strip()
             if category not in CATEGORIES or not 2<=len(value)<=180 or len(evidence)>500: continue
             if value.casefold() not in evidence.casefold() or evidence.casefold() not in text.casefold(): continue
-            if not re.search(r'\b(I|my|I’m|I\'m)\b|ഞാൻ|എന്റെ|എനിക്ക്',evidence,re.I): continue
+            if not re.search(r'\b(I|my|I’m|I\'m)\b|\b(jane|njaan|ente|enikku|enike)\b|ഞാൻ|എന്റെ|എനിക്ക്',evidence,re.I): continue
             if SENSITIVE.search(value+' '+evidence): continue
             content=category.title()+': '+value
             if settings.get('memory_review',True):
