@@ -42,6 +42,10 @@ jobs:
         shell: pwsh
         run: ./tests/windows_paths.ps1
       - run: python scripts/build_binary.py
+      - name: Release updater activation and integrity regression
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/release_update.ps1
       - name: Binary smoke check
         shell: bash
         run: ./dist/nila --version

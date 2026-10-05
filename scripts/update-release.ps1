@@ -14,6 +14,7 @@ try { $lock=[IO.File]::Open((Join-Path $Root 'install.lock'),'OpenOrCreate','Rea
 catch { throw 'Another Nila installation/update is running. Try again later.' }
 $stage=Join-Path $Root ('u-'+[guid]::NewGuid().ToString('N').Substring(0,8))
 try {
+    if ((Get-Content (Join-Path $Root 'current.txt') -Raw).Trim() -eq $Commit) { Write-Output 'This release is already installed.'; return }
     $release=Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/tags/$ReleaseTag" -Headers $Headers
     $resolved=(Invoke-RestMethod "https://api.github.com/repos/$Repo/commits/$ReleaseTag" -Headers $Headers).sha
     if ($release.draft -or $release.prerelease -or $resolved -ne $Commit) { throw 'Release changed or is not stable. Retry update.' }

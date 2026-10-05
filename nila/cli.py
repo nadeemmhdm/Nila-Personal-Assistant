@@ -266,7 +266,9 @@ def main():
         elif args.command == "update":
             from .updater import check,apply_update,auto_update
             if args.auto: auto_update(store)
-            else: print(json.dumps(check() if args.check else apply_update(),indent=2))
+            else:
+                print("Checking stable GitHub Releases…" if args.check else "Checking and installing the latest stable release. Please wait…",flush=True)
+                print(json.dumps(check() if args.check else apply_update(),indent=2))
         elif args.command == "pull":
             from .extensions import pull_model,ModelPull
             model=ModelPull(model=args.model).model

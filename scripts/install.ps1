@@ -63,6 +63,32 @@ function Find-Python {
     return $null
 }
 try {
+    $release=$null
+    if (-not $Commit) {
+        $release = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest" -Headers $Headers
+        if ($release.tag_name -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$' -or $release.prerelease -or $release.draft) { throw 'No valid stable release is available.' }
+        $Commit = (Invoke-RestMethod "https://api.github.com/repos/$Repo/commits/$($release.tag_name)" -Headers $Headers).sha
+        Write-Host "Nila: installing $($release.tag_name)..."
+    }
+    # Existing managed installs migrate directly to the published executable.
+    if ($release -and (Test-Path (Join-Path $Root 'current.txt'))) {
+        $meta=Invoke-RestMethod "https://api.github.com/repos/$Repo/contents/scripts/update-release.ps1?ref=$Commit" -Headers $Headers
+        if ($meta.encoding -ne 'base64') { throw 'Unexpected updater encoding.' }
+        $bytes=[Convert]::FromBase64String($meta.content)
+        $prefix=[Text.Encoding]::UTF8.GetBytes("blob $($bytes.Length)`0")
+        $sha1=[Security.Cryptography.SHA1]::Create()
+        try { $hash=[BitConverter]::ToString($sha1.ComputeHash([byte[]]($prefix+$bytes))).Replace('-','').ToLowerInvariant() }
+        finally { $sha1.Dispose() }
+        if ($hash -ne $meta.sha) { throw 'Release updater integrity check failed.' }
+        $migration=Join-Path $Root ('release-update-'+[guid]::NewGuid().ToString('N')+'.ps1')
+        [IO.File]::WriteAllBytes($migration,$bytes)
+        $Lock.Dispose();$Lock=$null
+        try {
+            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $migration -Commit $Commit -ReleaseTag $release.tag_name -UpdateOnly
+            if ($LASTEXITCODE -ne 0) { throw 'Release installation failed. Current installation retained.' }
+        } finally { Remove-Item $migration -Force -ErrorAction SilentlyContinue }
+        return
+    }
     Write-Host 'Nila: checking requirements...'
     $Python = Find-Python
     if (-not $Python) { Install-NilaRequirement 'Python.Python.3.12'; $Python = Find-Python }
@@ -78,12 +104,6 @@ try {
         $ollamaPath = Join-Path $env:LOCALAPPDATA 'Programs\Ollama'
         if (Test-Path (Join-Path $ollamaPath 'ollama.exe')) { $env:Path += ";$ollamaPath" }
         else { Install-NilaRequirement 'Ollama.Ollama'; $env:Path += ";$ollamaPath" }
-    }
-    if (-not $Commit) {
-        $release = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest" -Headers $Headers
-        if ($release.tag_name -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$' -or $release.prerelease -or $release.draft) { throw 'No valid stable release is available.' }
-        $Commit = (Invoke-RestMethod "https://api.github.com/repos/$Repo/commits/$($release.tag_name)" -Headers $Headers).sha
-        Write-Host "Nila: installing $($release.tag_name)..."
     }
     if ($Commit -notmatch '^[a-f0-9]{40}$') { throw 'Invalid upstream commit.' }
     $Versions = Join-Path $Root 'versions'

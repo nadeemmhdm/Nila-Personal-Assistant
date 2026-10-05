@@ -3,6 +3,8 @@ import asyncio,getpass,json,os
 from pathlib import Path
 
 def add_parsers(sub):
+    p=sub.add_parser("speak",help="Read text aloud with an installed Windows offline voice");p.add_argument("text")
+    sub.add_parser("listen",help="Transcribe one utterance using installed Windows offline speech recognition")
     p=sub.add_parser('skills',help='List, import or select local Markdown skills');p.add_argument('action',nargs='?',default='list',choices=['list','add','use','off','remove']);p.add_argument('value',nargs='?')
     p=sub.add_parser('telegram',help='Configure encrypted Telegram private-chat access');p.add_argument('action',choices=['setup','status','test','disable','remove'])
     sub.add_parser('setup',help='Check requirements and choose a model')
@@ -21,13 +23,17 @@ def add_parsers(sub):
     p=sub.add_parser('feedback-list',help='Inspect, clear or reset local feedback');p.add_argument('--clear',type=int);p.add_argument('--reset',action='store_true')
 
 
-COMMANDS={'skills','telegram','setup','brief','mini','rollback','regenerate','branch','sources','backup','restore','inbox','projects','documents','feedback-list'}
+COMMANDS={'speak','listen','skills','telegram','setup','brief','mini','rollback','regenerate','branch','sources','backup','restore','inbox','projects','documents','feedback-list'}
 
 def execute(args,store):
     from . import workspace as ws
     def show(value):print(json.dumps(value,ensure_ascii=False,indent=2))
     c=args.command
-    if c=='skills':
+    if c in {'speak','listen'}:
+        from .voice import run
+        print('Listening locally for up to 20 seconds…' if c=='listen' else 'Speaking locally…',flush=True)
+        print(run(c,getattr(args,'text','')))
+    elif c=='skills':
         from . import skills
         if args.action=='list':show(skills.listing(store))
         elif args.action=='add':

@@ -270,7 +270,7 @@ function App() {
   function navigate(p: Page) {
     if (busy) return;
     selection.current++;
-    setPage(p);
+    setPage(p);setNotice('');
     if(p==="settings")api<Settings>("/settings").then(s=>{setSettings(s);setDraft(s)}).catch(fail);
     setError("");
     setMobile(false);
@@ -1346,7 +1346,7 @@ function App() {
                       }
                     />
                     <span>
-                      Automatically update from GitHub main
+                      Automatically update from stable GitHub Releases
                       <small>
                         Managed Windows installations check at startup, at most
                         once a day. Restart to use the new version.
@@ -1383,7 +1383,7 @@ function App() {
                     }
                   />
                   <span>
-                    Use relevant Learning Lab notes in chat
+                    Use saved learning and web knowledge in chat
                     <small>
                       Model-reviewed knowledge can contain mistakes. Manage
                       individual lessons in Learning Lab.

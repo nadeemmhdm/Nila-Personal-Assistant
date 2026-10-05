@@ -70,7 +70,7 @@ def register(app,store,scheduler):
     @app.post('/api/update')
     async def apply_update():
         if maintenance['update'].get('status')=='running':return maintenance['update']
-        maintenance['update']={'status':'running','message':'Building update in the background. Current version remains active.'}
+        maintenance['update']={'status':'running','message':'Downloading and verifying the latest stable release. Current version remains active.'}
         async def work():maintenance['update']=await asyncio.to_thread(updater.apply_update)
         launch(work());return maintenance['update']
     @app.post('/api/models/pull')
