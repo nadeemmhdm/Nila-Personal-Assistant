@@ -86,7 +86,7 @@ export function SystemPanel() {
   async function install() {
     if (
       !(await ask(
-        "Download and build the latest GitHub main-branch code? Your next launch will use the new version.",
+        "Download and verify the latest stable GitHub Release? Your next launch will use the new version.",
       ))
     )
       return;
@@ -204,7 +204,7 @@ export function SystemPanel() {
             Updates from GitHub
           </h2>
           <p>
-            Uses main-branch commits, independently of releases. Automatic
+            Uses stable GitHub Releases and verified prebuilt Windows executables. Automatic
             checks run at startup at most once a day when enabled in
             Preferences. New code activates on the next launch.
           </p>
@@ -224,13 +224,13 @@ export function SystemPanel() {
             }
             onClick={install}
           >
-            Install latest commit
+            Install latest release
           </button>
           {update && (
             <p>
               {update.message}{" "}
-              {update.latest && `Latest: ${update.latest.slice(0, 8)}`}{" "}
-              {update.available ? "New commit available." : ""}
+              {update.latest && `Latest: ${update.version || update.latest.slice(0, 8)}`}{" "}
+              {update.available ? "New release available." : ""}
             </p>
           )}
           <p role="status">{data?.maintenance.update.message}</p>

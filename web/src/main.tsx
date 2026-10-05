@@ -192,15 +192,16 @@ function App() {
   const [sidebarHidden,setSidebarHidden]=useState(false),[historyView,setHistoryView]=useState(false);
   const [followupQuestions,setFollowupQuestions]=useState<string[]>([]),[attachmentNames,setAttachmentNames]=useState<{id:string;name:string}[]>([]),[uploading,setUploading]=useState(false);
   const fileInput=useRef<HTMLInputElement>(null);
+  const attachmentTicket=useRef(0);
   const [confirmation,setConfirmation]=useState<{message:string;resolve:(v:boolean)=>void}|null>(null);
   const confirmAction=(message:string)=>new Promise<boolean>(resolve=>setConfirmation({message,resolve}));
   const [progress,setProgress]=useState(""),[started,setStarted]=useState(0),[elapsed,setElapsed]=useState(0);
   const [sources,setSources]=useState<{id:number;items:any[]}|null>(null);
   const sourceTicket=useRef(0);
   useEffect(()=>{const close=(e:Event)=>{if(e instanceof KeyboardEvent ? e.key==='Escape' : !(e.target instanceof Element&&e.target.closest('[data-source-region]'))){sourceTicket.current++;setSources(null)}};document.addEventListener('pointerdown',close);document.addEventListener('keydown',close);return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',close)}},[]);
-  useEffect(()=>{sourceTicket.current++;let live=true;if(chat?.id)api<{id:string;name:string}[]>(`/chats/${chat.id}/attachments`).then(v=>{if(live)setAttachmentNames(v)}).catch(()=>{});return()=>{live=false}},[chat?.id]);
+  useEffect(()=>{sourceTicket.current++;const ticket=++attachmentTicket.current;let live=true;if(chat?.id)api<{id:string;name:string}[]>(`/chats/${chat.id}/attachments`).then(v=>{if(live&&ticket===attachmentTicket.current)setAttachmentNames(v)}).catch(()=>{});return()=>{live=false}},[chat?.id]);
   async function toggleSources(mid:number){if(sources?.id===mid){sourceTicket.current++;setSources(null);return}const ticket=++sourceTicket.current;setSources({id:mid,items:[]});try{const items=await api<any[]>(`/chats/${chat!.id}/messages/${mid}/sources`);if(ticket===sourceTicket.current)setSources({id:mid,items})}catch(e){if(ticket===sourceTicket.current){setSources(null);fail(e)}}}
-  async function removeAttachment(id:string){if(!chat)return;try{await api(`/chats/${chat.id}/attachments/${id}`,'DELETE');setAttachmentNames(v=>v.filter(x=>x.id!==id))}catch(e){fail(e)}}
+  async function removeAttachment(id:string){if(!chat)return;try{await api(`/chats/${chat.id}/attachments/${id}`,'DELETE');attachmentTicket.current++;setAttachmentNames(v=>v.filter(x=>x.id!==id))}catch(e){fail(e)}}
 
   const [brief,setBrief]=useState<any>(null);
   const mini=new URLSearchParams(location.search).has("mini");
@@ -268,7 +269,7 @@ function App() {
     }
   }, [page]);
   function navigate(p: Page) {
-    if (busy) return;
+    if (busy || uploading) return;
     selection.current++;
     setPage(p);setNotice('');
     if(p==="settings")api<Settings>("/settings").then(s=>{setSettings(s);setDraft(s)}).catch(fail);
@@ -277,7 +278,7 @@ function App() {
     setFollowupQuestions([]);
   }
   function newChat() {
-    if (busy) return;
+    if (busy || uploading) return;
     selection.current++;
     setPage("chat");
     if(chat?.temporary)void api("/chats/"+chat.id,"DELETE").catch(fail);
@@ -292,13 +293,13 @@ function App() {
   }
   useEffect(()=>{const reload=()=>{api<Settings>('/settings').then(s=>{setSettings(s);setDraft(s)}).catch(fail)};window.addEventListener('nila-settings-changed',reload);return()=>window.removeEventListener('nila-settings-changed',reload)},[]);
   async function temporaryChat(){
-    if(busy)return;
+    if(busy||uploading)return;
     selection.current++;setFollowupQuestions([]);setAttachmentNames([]);setSources(null);
     try { if(chat?.temporary)await api('/chats/'+chat.id,'DELETE');const c=await api<Chat>('/chats','POST',{temporary:true});setChat(c);setPage('chat');setInput('');setEditing(null);setRegenerateBox(null);setError('');setMobile(false);setSearchMode('off'); }
     catch(e){fail(e)}
   }
   async function openChat(id: string) {
-    if (busy) return;
+    if (busy || uploading) return;
     const ticket = ++selection.current;
     try {
       if(chat?.temporary&&chat.id!==id)await api("/chats/"+chat.id,"DELETE");
@@ -324,7 +325,7 @@ function App() {
     selection.current++;
     sendLock.current = true;
     setFollowupQuestions([]);
-    setStarted(Date.now());setElapsed(0);setProgress('Checking local model');setRegenerating(regenerateId);setRegenerateBox(null);setSources(null);
+    sourceTicket.current++;setStarted(Date.now());setElapsed(0);setProgress('Checking local model');setRegenerating(regenerateId);setRegenerateBox(null);setSources(null);
     setBusy(true);
     setError("");
     setReplyText("");
@@ -418,7 +419,7 @@ function App() {
       let active=chat;if(!active){active=await api<Chat>('/chats','POST');setChat(active);}
       const data=await new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=reject;r.readAsDataURL(file)});
       const attachment=await api<{id:string;name:string}>(`/chats/${active.id}/attachments`,'POST',{name:file.name,data});
-      setAttachmentNames(n=>[...n.filter(x=>x.id!==attachment.id),attachment]);notify('File attached. Ask a question about it.');await refreshChats();
+      attachmentTicket.current++;setAttachmentNames(n=>[...n.filter(x=>x.id!==attachment.id),attachment]);notify('File attached. Ask a question about it.');await refreshChats();
     }catch(e){fail(e);setNotice('')}finally{setUploading(false)}
   }
   async function stop() {

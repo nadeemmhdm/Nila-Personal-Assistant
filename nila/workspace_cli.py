@@ -31,7 +31,7 @@ def execute(args,store):
     c=args.command
     if c in {'speak','listen'}:
         from .voice import run
-        print('Listening locally for up to 20 seconds…' if c=='listen' else 'Speaking locally…',flush=True)
+        print('Listening locally for up to 30 seconds…' if c=='listen' else 'Speaking locally…',flush=True)
         print(run(c,getattr(args,'text','')))
     elif c=='skills':
         from . import skills
