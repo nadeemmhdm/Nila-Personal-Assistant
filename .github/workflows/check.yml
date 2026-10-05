@@ -80,4 +80,4 @@ jobs:
           cp artifacts/nila-Windows/nila.exe nila-Windows.exe
           cp artifacts/nila-Linux/nila nila-Linux
           sha256sum nila-Windows.exe nila-Linux > SHA256SUMS
-          gh release create "$tag" nila-Windows.exe nila-Linux SHA256SUMS --target "$GITHUB_SHA" --title "Nila $version — Personal Workspace" --notes-file docs/releases/v0.6.0.md
+          gh release create "$tag" nila-Windows.exe nila-Linux SHA256SUMS --target "$GITHUB_SHA" --title "Nila $version — Personal Workspace" --notes-file "docs/releases/$tag.md"

@@ -2,7 +2,7 @@
 
 **A personal AI workspace for your browser, terminal and private Telegram chat.**
 
-Version **0.5.0** · Developed by [Nadeem](https://github.com/nadeemmhdm) · MIT license
+Version **0.6.0** · Developed by [Nadeem](https://github.com/nadeemmhdm) · MIT license
 
 Nila uses Ollama on your computer. `llama3.2:1b` is recommended for getting started; choose any installed compatible text model. Personal conversations, memories and attached text stay local unless you deliberately use an online feature. No Ollama API key is needed for the local endpoint.
 
