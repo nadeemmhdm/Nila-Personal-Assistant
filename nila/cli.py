@@ -16,6 +16,14 @@ def parser():
     ask = sub.add_parser("ask",help="Ask one question")
     ask.add_argument("prompt")
     ask.add_argument("--chat",help="Resume a conversation ID")
+    ask.add_argument('--search',choices=['off','quick','deep'],default='off')
+    ask.add_argument('--query',help='Separate public web query; otherwise sends this prompt')
+    ask.add_argument('--edit',type=int,help='Replace a user message ID in --chat, removing subsequent turns')
+    feedback=sub.add_parser('feedback',help='Rate an answer locally; never sent to Gemini')
+    feedback.add_argument('chat_id')
+    feedback.add_argument('message_id',type=int)
+    feedback.add_argument('rating',choices=['up','down','clear'])
+    feedback.add_argument('--reason',default='')
     chat = sub.add_parser("chat",help="Interactive conversation")
     chat.add_argument("--chat",help="Resume a conversation ID")
     web = sub.add_parser("web",help="Start the local web interface")
@@ -92,21 +100,47 @@ def parser():
         item.add_argument("text",nargs="?")
     return p
 
-async def answer(store,cid,prompt):
-    async for part in reply(store,cid,prompt):
+async def answer(store,cid,prompt,search_mode="off",search_query=None,edit_message_id=None):
+    async for part in reply(store,cid,prompt,search_mode=search_mode,search_query=search_query,edit_message_id=edit_message_id):
         print(part,end="",flush=True)
     print()
 
 async def interactive(store,cid):
     s = store.settings()
+    search_mode="off"
     print(f"\n{s['assistant_name']} · {s['model']} · local\nConversation: {cid}\nJust type your message and press Enter. No command needed per message.\n/help for shortcuts · /exit to quit\n")
     while True:
         try: prompt = input("You › ").strip()
         except EOFError: break
         if prompt == "/exit": break
         if prompt == "/help":
-            print('/new · /model · /learn · /remember TEXT · /exit. Or just type a message.')
+            print('/new · /resume ID · /search off|quick|deep · /continue · /edit · /up · /down · /feedback TEXT · /model · /learn · /remember TEXT · /exit. Or just type a message.')
             continue
+        if prompt.startswith('/search '):
+            mode=prompt.split(maxsplit=1)[1]
+            if mode not in {'off','quick','deep'}: print('Choose off, quick or deep.'); continue
+            search_mode=mode
+            print('Web search:',mode,'. When enabled only each new message is sent to search services, not chat history or memories.')
+            continue
+        if prompt.startswith('/resume '):
+            try:
+                target=prompt.split(maxsplit=1)[1];store.chat(target);cid=target;print('Resumed:',cid)
+            except KeyError: print('Conversation not found')
+            continue
+        if prompt in {'/up','/down'} or prompt.startswith('/feedback '):
+            latest=next((m for m in reversed(store.chat(cid)['messages']) if m['role']=='assistant'),None)
+            if latest:
+                store.feedback(cid,latest['id'],1 if prompt=='/up' else -1,prompt[10:] if prompt.startswith('/feedback ') else '')
+                print('Feedback saved locally. Future replies use it as guidance.')
+            else: print('No answer to rate yet.')
+            continue
+        if prompt=='/continue': prompt='Continue your previous answer from where you left off, without repeating it.'
+        edit_id=None
+        if prompt=='/edit':
+            latest=next((m for m in reversed(store.chat(cid)['messages']) if m['role']=='user'),None)
+            if not latest: print('No prompt to edit yet.'); continue
+            print('This replaces the last prompt and its answer.')
+            prompt=input('New prompt: ').strip();edit_id=latest['id']
         if prompt == "/model":
             try:
                 available=await models()
@@ -134,13 +168,13 @@ async def interactive(store,cid):
         if not prompt: continue
         if len(prompt)>12000: print("Message limit: 12000 characters."); continue
         print(f"{s['assistant_name']} › ",end="",flush=True)
-        try: await answer(store,cid,prompt)
+        try: await answer(store,cid,prompt,search_mode=search_mode,edit_message_id=edit_id)
         except (NilaError, RuntimeError) as exc: print(f"\n{exc}")
 
 def main():
     if hasattr(sys.stdout,"reconfigure"): sys.stdout.reconfigure(encoding="utf-8")
     argv=sys.argv[1:]
-    known={'ask','chat','web','worker','update','service','pull','automation','doctor','models','model','history','delete','export','settings','memory','notes','tasks','gemini','learn','knowledge'}
+    known={'ask','chat','web','worker','update','service','pull','automation','doctor','models','model','history','delete','export','settings','memory','notes','tasks','gemini','learn','knowledge','feedback'}
     if argv and not argv[0].startswith('-') and argv[0] not in known:
         argv=['ask',' '.join(argv)]
     args = parser().parse_args(argv)
@@ -227,11 +261,15 @@ def main():
                 timer.daemon = True
                 timer.start()
             uvicorn.run(create_app(store),host="127.0.0.1",port=args.port,log_level="warning")
+        elif args.command == "feedback":
+            store.feedback(args.chat_id,args.message_id,{'up':1,'down':-1,'clear':0}[args.rating],args.reason)
+            print('Feedback saved locally.')
         elif args.command == "ask":
             prompt = args.prompt.strip()
             if not prompt or len(prompt)>12000: raise ValueError("Message must be 1–12000 characters")
             cid = args.chat or store.create_chat()["id"]
-            asyncio.run(answer(store,cid,prompt))
+            if args.edit and not args.chat: raise ValueError("--edit requires --chat")
+            asyncio.run(answer(store,cid,prompt,search_mode=args.search,search_query=args.query,edit_message_id=args.edit))
         elif args.command in {"chat",None}:
             cid = getattr(args,"chat",None) or store.create_chat()["id"]
             store.chat(cid)

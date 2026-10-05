@@ -2,7 +2,7 @@
 
 ## Supported scope
 
-Nila 0.3.x is a single-user, local-first assistant. Use the latest main-branch build and review changes before deploying it in a sensitive environment. Nila is not a hardened multi-tenant service.
+Nila 0.4.x is a single-user, local-first assistant. Use the latest main-branch build and review changes before deploying it in a sensitive environment. Nila is not a hardened multi-tenant service.
 
 ## Data protection
 
@@ -51,3 +51,11 @@ Sessions have bounded duration and rounds, support cancellation during network r
 Deleting a session also removes its associated learned lessons. Removing the API key requests active sessions to stop; an already submitted request cannot be recalled from Google. Application-level cancellation cannot undo charges or processing already initiated by a provider. Existing ordinary conversation transcripts may contain copies of previously used content.
 
 Ollama cloud-tagged models selected for ordinary chat may route data through Ollama's cloud service and require that service's credentials. Use locally downloaded models for offline operation. Learning Lab rejects explicitly cloud-tagged local-model selections.
+
+## Web evidence and local feedback
+
+DDGS receives only a user-supplied search query or the current message when Quick/Deep is selected. The search module has no Store parameter and cannot retrieve saved chats, personal memory, profile or feedback. Off returns before importing the search provider. No Gemini call is involved in normal chat or web search. Search snippets are bounded, deduplicated, labeled untrusted and never executed. Only HTTP(S) public-looking source URLs are retained; Nila does not fetch arbitrary result pages. Search results and linked pages may still be malicious or inaccurate. Search-provider network metadata is outside local encryption.
+
+Feedback reasons are encrypted; ratings and associated message IDs are metadata. Local chat context uses bounded examples/guidance; votes are not authoritative corrections and do not fine-tune the model. Clearing a vote removes its guidance, and deleting a chat or truncating a branch cascades to associated feedback.
+
+The Learning Lab local-model prompt is isolated from ordinary chat context, including retrieved feedback and web-search history. Its outbound review client accepts only a key and explicit study-session data, with no Store access. Extra session fields (including memory-inclusion flags) are rejected. Tests seed private profile, memory, notes, conversations and feedback and check both local-Lab and Gemini HTTP payloads. Content explicitly pasted into the study topic/description is still sent with the user's session consent.

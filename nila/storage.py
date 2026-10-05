@@ -29,6 +29,7 @@ class Store:
                 CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY,content TEXT NOT NULL,created REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY,content TEXT NOT NULL,done INTEGER NOT NULL DEFAULT 0,created REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS lease (id INTEGER PRIMARY KEY,token TEXT,expires REAL);
+                CREATE TABLE IF NOT EXISTS feedback (message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,rating INTEGER NOT NULL,reason TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS forgotten (fingerprint TEXT PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS automations (id TEXT PRIMARY KEY,title TEXT NOT NULL,prompt TEXT NOT NULL,kind TEXT NOT NULL,interval_minutes INTEGER NOT NULL,next_run REAL NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,running_until REAL NOT NULL DEFAULT 0,claim TEXT);
                 CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY,automation_id TEXT NOT NULL,started REAL NOT NULL,status TEXT NOT NULL,output TEXT NOT NULL);
@@ -78,7 +79,7 @@ class Store:
         with self.db() as db:
             row=db.execute('SELECT * FROM chats WHERE id=?',(cid,)).fetchone()
             if row is None: raise KeyError('Conversation not found')
-            return self.decode(row,['title'])|{'messages':[self.decode(r,['content']) for r in db.execute('SELECT * FROM messages WHERE chat_id=? ORDER BY id',(cid,))]}
+            return self.decode(row,['title'])|{'messages':[self.decode(r,['content']) for r in db.execute('SELECT messages.*,COALESCE(feedback.rating,0) AS rating FROM messages LEFT JOIN feedback ON feedback.message_id=messages.id WHERE chat_id=? ORDER BY messages.id',(cid,))]}
     def add_message(self,cid,role,content,status='complete'):
         with self.db() as db:
             db.execute('INSERT INTO messages(chat_id,role,content,status) VALUES (?,?,?,?)',(cid,role,self.seal(content),status))
@@ -132,3 +133,37 @@ class Store:
         return token
     def release(self,token):
         with self.db() as db: db.execute('DELETE FROM lease WHERE token=?',(token,))
+
+    def revise_prompt(self,cid,mid,content):
+        """Caller holds generation lease. Replace this turn and discard its dependent branch."""
+        with self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row=db.execute("SELECT id FROM messages WHERE id=? AND chat_id=? AND role='user'",(mid,cid)).fetchone()
+            if not row: raise KeyError('Prompt not found')
+            db.execute('DELETE FROM messages WHERE chat_id=? AND id>?',(cid,mid))
+            db.execute("UPDATE messages SET content=?,status='complete' WHERE id=?",(self.seal(content),mid))
+            first=db.execute("SELECT id FROM messages WHERE chat_id=? AND role='user' ORDER BY id LIMIT 1",(cid,)).fetchone()
+            if first and first[0]==mid: db.execute('UPDATE chats SET title=? WHERE id=?',(self.seal(content[:65]),cid))
+            db.execute('UPDATE chats SET updated=? WHERE id=?',(time.time(),cid))
+
+    def feedback(self,cid,mid,rating,reason=''):
+        if rating not in {-1,0,1}: raise ValueError('Invalid rating')
+        if len(reason)>500: raise ValueError('Feedback must be at most 500 characters')
+        with self.db() as db:
+            if not db.execute("SELECT id FROM messages WHERE id=? AND chat_id=? AND role='assistant'",(mid,cid)).fetchone(): raise KeyError('Answer not found')
+            if rating==0: db.execute('DELETE FROM feedback WHERE message_id=?',(mid,))
+            else: db.execute('INSERT OR REPLACE INTO feedback VALUES (?,?,?)',(mid,rating,self.seal(reason.strip())))
+
+    def feedback_context(self,query):
+        # Local retrieval only: relevant rated examples and explicit recent guidance.
+        import re
+        words=set(re.findall(r'\w{4,}',query.lower()))
+        selected=[]
+        with self.db() as db:
+            rows=db.execute("SELECT f.*,m.content,(SELECT content FROM messages u WHERE u.chat_id=m.chat_id AND u.role='user' AND u.id<m.id ORDER BY u.id DESC LIMIT 1) AS prompt FROM feedback f JOIN messages m ON m.id=f.message_id ORDER BY m.id DESC LIMIT 30").fetchall()
+        for row in rows:
+            reason=self.open(row['reason']);prompt=self.open(row['prompt']) if row['prompt'] else ''
+            if reason or words.intersection(re.findall(r'\w{4,}',prompt.lower())):
+                selected.append({'rating':'helpful' if row['rating']==1 else 'unhelpful','guidance':reason,'question':prompt[:180],'answer':self.open(row['content'])[:400]})
+            if len(selected)==3: break
+        return json.dumps(selected,ensure_ascii=False) if selected else ''

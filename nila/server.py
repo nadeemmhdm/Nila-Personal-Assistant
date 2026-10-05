@@ -44,7 +44,14 @@ class Settings(BaseModel):
             raise ValueError("Use a single line name")
         return v.strip()
 
+class Feedback(BaseModel):
+    rating: Literal[-1,0,1]
+    reason: str = Field(default='',max_length=500)
+
 class Prompt(BaseModel):
+    search_mode: Literal['off','quick','deep'] = 'off'
+    search_query: str | None = Field(default=None,min_length=1,max_length=500)
+    edit_message_id: int | None = Field(default=None,gt=0)
     content: str = Field(min_length=1,max_length=12000)
     @field_validator("content")
     @classmethod
@@ -158,6 +165,11 @@ def create_app(store=None):
         store.delete_item(kind,iid)
         return {"ok":True}
 
+    @app.put("/api/chats/{cid}/messages/{mid}/feedback")
+    def feedback(cid:str,mid:int,value:Feedback):
+        store.feedback(cid,mid,value.rating,value.reason)
+        return {"ok":True}
+
     @app.post("/api/chats/{cid}/stop")
     async def stop(cid:str):
         task = running.get(cid)
@@ -168,10 +180,12 @@ def create_app(store=None):
     async def answer(cid:str, value:Prompt, request:Request):
         store.chat(cid)
         if cid in running: raise HTTPException(409,"A response is already running")
+        if value.edit_message_id is not None and not any(m['id']==value.edit_message_id and m['role']=='user' for m in store.chat(cid)['messages']):
+            raise HTTPException(404,"Prompt not found")
         queue = asyncio.Queue()
         async def produce():
             try:
-                async for part in reply(store,cid,value.content):
+                async for part in reply(store,cid,value.content,search_mode=value.search_mode,search_query=value.search_query,edit_message_id=value.edit_message_id):
                     await queue.put({"token":part})
             except asyncio.CancelledError:
                 await queue.put({"stopped":True})

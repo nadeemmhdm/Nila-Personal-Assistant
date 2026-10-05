@@ -47,3 +47,15 @@ If `/` reports that the interface is missing, run `npm ci` and `npm run build` i
 - **No learned improvement:** only acceptable reviewed lessons are saved; matching uses topic/content keywords. Check Learning Lab → Learned knowledge and the Preferences knowledge switch. This is retrieved context, not model-weight training.
 - **How to stop:** use Stop session, `nila learn --stop ID`, or Ctrl+C in the terminal running the session. Closing a browser tab alone does not stop the server-hosted session.
 - **CLI feels complicated:** run `nila` once, then type normal messages. `/model` switches models; `/learn` opens the guided discussion wizard.
+
+## Windows: OSError / missing PyInstaller hook / long paths
+
+The earlier installer nested `.venv` under a long `stage-<GUID>/source/<repository>-<40-character-commit>` path. This could exceed Windows' traditional path limit for dependency filenames. The current installer uses short `b-<id>/s` and `b-<id>/v` paths, without requiring a system registry change. Rerun the one-command installer from README. App data is separate and retained. Build cleanup removes only the current staging directory. An unusually long LOCALAPPDATA path is rejected before downloading dependencies.
+
+## NILA-020 — Web search unavailable
+
+Check internet connectivity, try a shorter query, or select Off. Search services can throttle or block requests; no API key is required but availability is not guaranteed. Deep issues three public query variants. If the message exceeds 500 characters, enter a shorter separate Web search query. Failed lookup leaves an edited conversation branch intact and does not fabricate a live answer.
+
+## Feedback or edited prompts
+
+Thumbs alone express preference; add specific feedback to explain a correction. Feedback stays local and does not train model weights. Click a selected thumb again to clear its stored guidance. Editing an earlier user prompt removes subsequent dependent turns and their feedback, but separately stored personal memories must be managed on the Memory page.

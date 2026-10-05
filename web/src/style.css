@@ -1347,3 +1347,135 @@ input[type="checkbox"] {
 .lab-transcript .markdown {
   font-size: 12px;
 }
+
+/* Conversation controls and gentle, reduced-motion-aware streaming. */
+.message-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 12px;
+  opacity: 0.65;
+  transition: opacity 0.2s;
+}
+.message:hover .message-actions,
+.message-actions:focus-within {
+  opacity: 1;
+}
+.message-actions .selected {
+  color: var(--accent, #b5adff);
+  background: rgba(153, 130, 255, 0.16);
+}
+.feedback-link {
+  background: none;
+  border: 0;
+  color: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 7px;
+}
+.edit-prompt {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #8884;
+  border-radius: 12px;
+  margin: 12px 0;
+}
+.edit-prompt textarea {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+  color: inherit;
+  background: transparent;
+  border: 1px solid #8884;
+  border-radius: 8px;
+  padding: 10px;
+  font: inherit;
+}
+.edit-prompt button {
+  padding: 8px 12px;
+  margin-right: 8px;
+  border: 1px solid #8884;
+  background: transparent;
+  color: inherit;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.edit-prompt small,
+.search-query small {
+  opacity: 0.65;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.search-controls {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 9px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.search-controls select {
+  padding: 7px;
+  border: 1px solid #8884;
+  border-radius: 9px;
+  color: inherit;
+  background: var(--bg, #191922);
+}
+.search-controls span {
+  opacity: 0.6;
+  font-size: 11px;
+}
+.search-query {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+.search-query input {
+  padding: 9px 12px;
+  border: 1px solid #8884;
+  border-radius: 9px;
+  color: inherit;
+  background: transparent;
+  width: 100%;
+}
+.message {
+  animation: message-arrive 0.24s ease-out;
+}
+.streaming > * {
+  animation: message-arrive 0.3s ease-out;
+}
+.markdown u {
+  text-underline-offset: 3px;
+}
+@keyframes message-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 600px) {
+  .search-controls span {
+    display: none;
+  }
+  .message-actions {
+    opacity: 1;
+  }
+  .composer-area {
+    padding-top: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .message,
+  .streaming > * {
+    animation: none;
+  }
+}
+[data-motion="reduce"] .message,
+[data-motion="reduce"] .streaming > * {
+  animation: none;
+}

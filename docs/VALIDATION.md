@@ -1,3 +1,32 @@
+# Validation — v0.4.0
+
+Validated in Linux on 2026-10-05. Windows installation was not executed in this environment.
+
+| Check | Result |
+| --- | --- |
+| Python regression suite | 37 passed |
+| TypeScript and Vite production build | Passed |
+| Browser prompt/reply clipboard, feedback, edit/regenerate | Passed using simulated Ollama/search |
+| Continue response and reopen saved conversation | Passed in Chromium |
+| Markdown bold/italic/underline/code, raw HTML disabled | Passed in Chromium |
+| Quick search sources and visible search failure | Passed in Chromium |
+| Mobile 390 × 844 layout | No horizontal overflow |
+| Browser runtime errors in exercised flows | None |
+| Live DDGS lookup | Returned two official Python documentation links; provider availability can vary |
+| Deep query expansion, deduplication, unsafe link filtering | Passed with simulated search |
+| Off mode | No provider invocation |
+| Search failure while editing | Original branch retained |
+| Feedback guidance | Encrypted, used locally, clearable, cascades with removed turns |
+| Lab privacy | Both local-Lab and Gemini HTTP payloads exclude seeded private profile, memory, notes, chat and feedback |
+| Linux standalone executable | Built and starts as Nila 0.4.0; DDGS dynamic engines load |
+| Packaged live search | Initial attempts hit timeout/no-results; matching direct/frozen provider probes both returned no-results. Availability is not guaranteed. |
+| Windows path regression | CI added: actual compact path helper + installation of the previously failing hook dependency; not run here |
+| Live Gemini / real Ollama answer quality | Not tested; simulated providers used |
+
+No claim is made that Gemini review or user votes establish factual correctness, or that retrieval changes model weights. Deep search uses result snippets, not full-page extraction. Windows CI results must be checked independently before treating a Windows installation as verified.
+
+---
+
 # Validation — v0.3.0
 
 Validated in the Linux development environment on 2026-10-04.

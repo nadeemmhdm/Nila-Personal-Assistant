@@ -4,7 +4,7 @@
 
 Nila runs on Ollama, remembers useful details about you, and carries out scheduled local work. The Web UI and `nila` command share encrypted storage and the same assistant settings.
 
-**Version:** 0.3.0 · **Recommended default:** `llama3.2:1b` · **Platforms:** Windows and Linux
+**Version:** 0.4.0 · **Recommended default:** `llama3.2:1b` · **Platforms:** Windows and Linux
 
 ## Install on Windows — one command
 
@@ -18,7 +18,7 @@ The command runs this repository's installer. It:
 
 1. Checks Python, Node.js/npm, and Ollama; installs missing requirements using WinGet.
 2. Downloads an immutable `main` commit and verifies each archived source file against its Git blob hash.
-3. Builds the Web UI and a standalone **`nila.exe`** in a staging directory.
+3. Builds the Web UI and a standalone **`nila.exe`** in a compact staging directory with a separate short-path Python environment (avoids the reported Windows MAX_PATH dependency error).
 4. Checks that the new binary starts before changing the active installation.
 5. Adds the `nila` launcher to your user PATH.
 6. Downloads `llama3.2:1b` only when it is missing.
@@ -50,6 +50,32 @@ nila web
 | Natural-language scheduling draft | Describe a job; review and save the proposed action and schedule |
 | Maintenance | Diagnostics, model download/resume and commit-based update controls |
 | Interface | Animated orb, response animation, responsive navigation, themes and reduced-motion support |
+
+## Web search, chat controls and feedback
+
+Web search starts **Off**. Select **Quick** for one query (up to four sources) or **Deep** for three query perspectives (up to eight deduplicated sources). Nila uses the open-source [DDGS](https://github.com/deedy5/ddgs) metasearch library with DuckDuckGo, Brave and Google backends, without a paid search API key. Search requires internet. Evidence consists of search-result snippets and source links; Deep broadens retrieval, but is not an exhaustive full-page research agent or a guarantee of correctness. Search generation uses at least a 4096-token context.
+
+The optional **Web search query** field lets you supply public search terms separately from your message. If blank, only the new message is sent to search services. No saved chat history, profile, memory or feedback is included in search queries. Review the visible query before sending sensitive information. Search providers see the query and network metadata. Failed/no-result searches show `NILA-020`; Nila does not silently present an offline answer as a live result. Off makes no search requests. Automated tasks remain offline.
+
+Replies render headings, **bold**, *italic*, lists, tables, links and fenced code. `++underlined text++` renders underlined; arbitrary HTML and remote images remain disabled. Streaming includes a thinking indicator, animated blocks and a cursor, with reduced-motion support. Copy buttons are available on both prompts and replies; copied text preserves the original Markdown.
+
+- **Edit prompt → Save & regenerate** replaces that user turn and removes its old answer and all dependent later turns. Earlier turns remain. If search/model preflight fails, the existing branch remains. A generation interruption saves the new partial answer. Editing chat does not erase separately saved memories; use Memory controls for that.
+- **Continue response** asks the model to continue in the same chat. Type any follow-up normally, or select a saved conversation in the sidebar to resume after reopening the app.
+- **Thumbs up/down** records local feedback; click the selected thumb to clear it. **Add feedback** supplies a correction or style preference. Relevant rated examples and recent explicit guidance influence subsequent local chat prompts automatically. Guidance is encrypted, removable with its vote/chat, and never sent to Gemini. Votes are preference signals, not factual verification or model-weight training.
+
+Terminal equivalents:
+
+```powershell
+nila
+# Inside chat: /search quick, /search deep, /search off
+# /up, /down, /feedback Use examples, /edit, /continue, /resume CHAT_ID
+nila ask "Explain the latest changes" --search deep --query "Python official release notes"
+nila chat --chat CHAT_ID
+nila ask "Revised prompt" --chat CHAT_ID --edit USER_MESSAGE_ID
+nila feedback CHAT_ID ASSISTANT_MESSAGE_ID down --reason "Please use examples"
+```
+
+`nila export CHAT_ID` prints the conversation. Clipboard buttons belong to the browser interface; terminal selection/copy remains available. Gemini is used only in the separately consented Learning Lab, never to review personal chat replies or feedback.
 
 ## Choose any compatible Ollama model
 

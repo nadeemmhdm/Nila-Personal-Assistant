@@ -140,4 +140,5 @@ def test_cli_shared_storage(store,monkeypatch):
     assert result.returncode==0,result.stderr
     assert store.items('memories')[0]['content']=='Keep it simple'
     result=subprocess.run([sys.executable,'-m','nila','--version'],capture_output=True,text=True)
-    assert '0.3.0' in result.stdout
+    from nila import __version__
+    assert __version__ in result.stdout

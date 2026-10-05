@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { RichText } from "./RichText";
 import {
+  ThumbsUp,
+  ThumbsDown,
+  Globe,
   ArrowUp,
   ArrowUpRight,
   Plus,
@@ -56,7 +58,13 @@ type Settings = {
   interests: string;
   tone: string;
 };
-type Message = { id: number; role: string; content: string; status: string };
+type Message = {
+  id: number;
+  role: string;
+  content: string;
+  status: string;
+  rating?: number;
+};
 type Chat = { id: string; title: string; messages?: Message[] };
 type Item = { id: string; content: string; done?: boolean; source?: string };
 type Status = {
@@ -156,6 +164,13 @@ function App() {
     [itemText, setItemText] = useState(""),
     [editId, setEditId] = useState<string | null>(null),
     [copied, setCopied] = useState<number | null>(null);
+  const [searchMode, setSearchMode] = useState("off");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [editing, setEditing] = useState<number | null>(null);
+  const [editText, setEditText] = useState("");
+  const [feedbackId, setFeedbackId] = useState<number | null>(null);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackRating, setFeedbackRating] = useState(0);
   const bottom = useRef<HTMLDivElement>(null),
     field = useRef<HTMLTextAreaElement>(null),
     requestChat = useRef<string | null>(null),
@@ -227,6 +242,8 @@ function App() {
     selection.current++;
     setPage("chat");
     setChat(null);
+    setEditing(null);
+    setFeedbackId(null);
     setInput("");
     setError("");
     setMobile(false);
@@ -239,6 +256,8 @@ function App() {
       const value = await api<Chat>("/chats/" + id);
       if (ticket === selection.current) {
         setChat(value);
+        setEditing(null);
+        setFeedbackId(null);
         setPage("chat");
         setError("");
         setMobile(false);
@@ -247,13 +266,14 @@ function App() {
       fail(e);
     }
   }
-  async function send(text = input) {
+  async function send(text = input, editMessageId: number | null = null) {
     if (sendLock.current || !text.trim()) return;
     sendLock.current = true;
     setBusy(true);
     setError("");
     setReplyText("");
     setInput("");
+    setEditing(null);
     let active = chat;
     try {
       if (!active) active = await api<Chat>("/chats", "POST");
@@ -261,14 +281,24 @@ function App() {
       setChat({
         ...active,
         messages: [
-          ...(active.messages || []),
+          ...(editMessageId
+            ? (active.messages || []).filter((m) => m.id < editMessageId)
+            : active.messages || []),
           { id: -1, role: "user", content: text, status: "complete" },
         ],
       });
       const r = await fetch("/api/chats/" + active.id + "/reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({
+          content: text,
+          search_mode: searchMode,
+          search_query:
+            searchMode !== "off" && searchQuery.trim()
+              ? searchQuery.trim()
+              : null,
+          edit_message_id: editMessageId,
+        }),
       });
       if (!r.ok) {
         const d = await r.json();
@@ -351,6 +381,24 @@ function App() {
       setTimeout(() => setCopied(null), 1500);
     } catch {
       setError("Clipboard unavailable. Select and copy the text manually.");
+    }
+  }
+  async function rate(mid: number, rating: number, reason = "") {
+    if (!chat) return;
+    try {
+      await api(`/chats/${chat.id}/messages/${mid}/feedback`, "PUT", {
+        rating,
+        reason,
+      });
+      setChat(await api<Chat>("/chats/" + chat.id));
+      setFeedbackId(null);
+      notify(
+        rating
+          ? "Saved locally. Nila will use this feedback in future replies."
+          : "Feedback removed.",
+      );
+    } catch (e) {
+      fail(e);
     }
   }
   function exportChat() {
@@ -728,34 +776,139 @@ function App() {
                           )}
                         </div>
                         <div className="markdown">
-                          <Markdown
-                            remarkPlugins={[remarkGfm]}
-                            components={{
-                              img: () => <em>[External image omitted]</em>,
-                              a: ({ children, href }) => (
-                                <a href={href} target="_blank" rel="noreferrer">
-                                  {children}
-                                </a>
-                              ),
-                            }}
-                          >
-                            {m.content ||
+                          <RichText
+                            text={
+                              m.content ||
                               (m.status !== "complete"
                                 ? "Response stopped before any text arrived."
-                                : "")}
-                          </Markdown>
+                                : "")
+                            }
+                          />
                         </div>
-                        <button
-                          className="copy icon"
-                          aria-label="Copy message"
-                          onClick={() => copy(m.content, m.id)}
-                        >
-                          {copied === m.id ? (
-                            <Check size={14} />
-                          ) : (
-                            <Copy size={14} />
+                        {editing === m.id && (
+                          <div className="edit-prompt">
+                            <textarea
+                              aria-label="Edit prompt"
+                              value={editText}
+                              maxLength={12000}
+                              onChange={(e) => setEditText(e.target.value)}
+                            />
+                            <small>
+                              This replaces this answer and removes later turns
+                              in this conversation.
+                            </small>
+                            <div>
+                              <button
+                                disabled={busy || !editText.trim()}
+                                onClick={() => send(editText, m.id)}
+                              >
+                                Save & regenerate
+                              </button>
+                              <button onClick={() => setEditing(null)}>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        <div className="message-actions">
+                          <button
+                            className="icon"
+                            aria-label={
+                              m.role === "user"
+                                ? "Copy prompt"
+                                : "Copy response"
+                            }
+                            onClick={() => copy(m.content, m.id)}
+                          >
+                            {copied === m.id ? (
+                              <Check size={14} />
+                            ) : (
+                              <Copy size={14} />
+                            )}
+                          </button>
+                          {m.role === "user" && (
+                            <button
+                              className="icon"
+                              aria-label="Edit prompt"
+                              disabled={busy || m.id < 0}
+                              onClick={() => {
+                                setEditing(m.id);
+                                setEditText(m.content);
+                              }}
+                            >
+                              <PenLine size={14} />
+                            </button>
                           )}
-                        </button>
+                          {m.role === "assistant" && (
+                            <>
+                              <button
+                                className={
+                                  "icon " + (m.rating === 1 ? "selected" : "")
+                                }
+                                aria-label="Helpful response"
+                                aria-pressed={m.rating === 1}
+                                disabled={busy}
+                                onClick={() =>
+                                  rate(m.id, m.rating === 1 ? 0 : 1)
+                                }
+                              >
+                                <ThumbsUp size={14} />
+                              </button>
+                              <button
+                                className={
+                                  "icon " + (m.rating === -1 ? "selected" : "")
+                                }
+                                aria-label="Unhelpful response"
+                                aria-pressed={m.rating === -1}
+                                disabled={busy}
+                                onClick={() =>
+                                  rate(m.id, m.rating === -1 ? 0 : -1)
+                                }
+                              >
+                                <ThumbsDown size={14} />
+                              </button>
+                              <button
+                                className="feedback-link"
+                                disabled={busy}
+                                onClick={() => {
+                                  setFeedbackId(m.id);
+                                  setFeedbackText("");
+                                  setFeedbackRating(m.rating || -1);
+                                }}
+                              >
+                                Add feedback
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        {feedbackId === m.id && (
+                          <div className="edit-prompt">
+                            <textarea
+                              aria-label="Feedback guidance"
+                              value={feedbackText}
+                              maxLength={500}
+                              placeholder="What should Nila improve? e.g. Shorter answers, explain with examples."
+                              onChange={(e) => setFeedbackText(e.target.value)}
+                            />
+                            <div>
+                              <button
+                                disabled={busy || !feedbackText.trim()}
+                                onClick={() =>
+                                  rate(m.id, feedbackRating, feedbackText)
+                                }
+                              >
+                                Save feedback
+                              </button>
+                              <button onClick={() => setFeedbackId(null)}>
+                                Cancel
+                              </button>
+                            </div>
+                            <small>
+                              Stored locally; never sent to Gemini. Adapts
+                              future context, not model weights.
+                            </small>
+                          </div>
+                        )}
                       </div>
                     </article>
                   ))}
@@ -768,7 +921,9 @@ function App() {
                         <div className="message-meta">
                           {settings.assistant_name}
                           <small className="responding">
-                            Responding
+                            {searchMode === "off"
+                              ? "Responding"
+                              : "Searching & composing"}
                             <span className="dots">
                               <i />
                               <i />
@@ -778,12 +933,7 @@ function App() {
                         </div>
                         {replyText ? (
                           <div className="markdown streaming">
-                            <Markdown
-                              remarkPlugins={[remarkGfm]}
-                              components={{ img: () => null }}
-                            >
-                              {replyText}
-                            </Markdown>
+                            <RichText text={replyText} />
                           </div>
                         ) : (
                           <div className="skeleton">
@@ -802,13 +952,26 @@ function App() {
                           .reverse()
                           .find((m) => m.role === "user");
                         if (last) {
-                          setInput(last.content);
-                          field.current?.focus();
+                          setEditing(last.id);
+                          setEditText(last.content);
                         }
                       }}
                     >
                       <RefreshCw size={13} />
-                      Use last prompt again
+                      Edit last prompt
+                    </button>
+                  )}
+                  {!busy && !!chat?.messages?.length && (
+                    <button
+                      className="retry"
+                      onClick={() =>
+                        send(
+                          "Continue your previous answer from where you left off, without repeating it.",
+                        )
+                      }
+                    >
+                      <MessageSquare size={13} />
+                      Continue response
                     </button>
                   )}
                   <div ref={bottom} />
@@ -816,6 +979,44 @@ function App() {
               )}
             </div>
             <div className="composer-area">
+              <div className="search-controls">
+                <Globe size={15} />
+                <label htmlFor="search-mode">Web search</label>
+                <select
+                  id="search-mode"
+                  value={searchMode}
+                  disabled={busy}
+                  onChange={(e) => setSearchMode(e.target.value)}
+                >
+                  <option value="off">Off · local only</option>
+                  <option value="quick">Quick search</option>
+                  <option value="deep">Deep search</option>
+                </select>
+                <span>
+                  {searchMode === "off"
+                    ? "No web queries sent"
+                    : searchMode === "quick"
+                      ? "One lookup · up to 4 sources"
+                      : "Three queries · up to 8 sources"}
+                </span>
+              </div>
+              {searchMode !== "off" && (
+                <div className="search-query">
+                  <input
+                    aria-label="Web search query"
+                    maxLength={500}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Optional separate search query"
+                    disabled={busy}
+                  />
+                  <small>
+                    Only this query (or your new message if blank) goes to
+                    search services. Saved chats, profile and memory are
+                    excluded. Internet required.
+                  </small>
+                </div>
+              )}
               <form
                 className="composer"
                 onSubmit={(e) => {

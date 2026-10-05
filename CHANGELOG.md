@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 — 2026-10-05
+
+- Fixed Windows dependency installation paths by flattening extracted source and using a short sibling virtual environment; added a Windows hook-install regression check.
+- Added opt-in DDGS Quick/Deep search, bounded sources, separate public query, Off default and explicit no-evidence errors.
+- Added local thumbs feedback with encrypted guidance and contextual reuse; no model weight training.
+- Added prompt edit/regenerate with dependent-branch replacement, continue response, CLI shortcuts, and prompt/reply copy.
+- Added safe underline rendering and refined streaming/motion controls.
+- Strengthened Gemini session isolation and privacy regression coverage.
+
 ## 0.3.0 — 2026-10-04
 
 - Added optional Gemini Learning Lab with visible model discussions, review/revision cycles, duration and round limits, Stop, encrypted transcripts and relevant saved knowledge.

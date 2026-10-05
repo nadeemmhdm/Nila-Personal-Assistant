@@ -40,3 +40,9 @@ Model output is data, not trusted executable instructions. Do not add arbitrary 
 See [SECURITY.md](SECURITY.md) for private reporting guidance. Keep pull requests focused, preserve existing user data, and avoid unrelated refactors.
 
 Gemini tests must use simulated responses; never put live keys in fixtures or CI. Test cancellation, quotas, key masking, profile exclusion and knowledge-off controls when changing Learning Lab. Contributions are governed by the project MIT license; dependency/model terms remain separate.
+
+## Privacy and conversation regression requirements
+
+Do not pass Store, personal prompts, profile, feedback retrieval or chat memory to a cloud-review client. Learning Lab HTTP payload tests must retain sentinel coverage for both its local and Gemini requests. Search must remain opt-in and derive queries only from explicit current input; no model-generated private-context search queries. Keep raw HTML disabled in the renderer.
+
+Run `python -m pytest -q`, `npm ci --prefix web`, and `npm run build --prefix web`. Windows CI additionally parses installer scripts and runs `tests/windows_paths.ps1` to install the dependency that triggered the reported path-length error inside the actual compact build-path layout. Binary packaging must collect DDGS dynamic backend modules. Use simulated providers for deterministic privacy and lifecycle tests; label any live-provider verification separately.

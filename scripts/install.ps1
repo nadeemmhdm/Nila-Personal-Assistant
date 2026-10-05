@@ -15,6 +15,12 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not secure NilaApp directory.' }
 $Lock = $null
 try { $Lock = [IO.File]::Open((Join-Path $Root 'install.lock'), 'OpenOrCreate', 'ReadWrite', 'None') }
 catch { throw 'Another Nila installation/update is running. Try again later.' }
+function Get-NilaBuildPaths([string]$AppRoot) {
+    $stagePath = Join-Path $AppRoot ('b-' + [guid]::NewGuid().ToString('N').Substring(0,8))
+    $venvPath = Join-Path $stagePath 'v'
+    if ($venvPath.Length -gt 120) { throw 'Nila build path is too long. Use a shorter LOCALAPPDATA directory for this installation.' }
+    return @{ Stage = $stagePath; Source = (Join-Path $stagePath 's'); Venv = $venvPath }
+}
 function Refresh-Path {
     $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
 }
@@ -69,7 +75,8 @@ try {
     New-Item -ItemType Directory -Force $Versions | Out-Null
     $Target = Join-Path $Versions $Commit
     if (-not (Test-Path (Join-Path $Target 'nila.exe')) -or -not (Test-Path (Join-Path $Root 'launcher.ps1'))) {
-        $Stage = Join-Path $Root ('stage-' + [guid]::NewGuid().ToString('N'))
+        $BuildPaths = Get-NilaBuildPaths $Root
+        $Stage = $BuildPaths.Stage
         New-Item -ItemType Directory $Stage | Out-Null
         try {
             $Zip = Join-Path $Stage 'source.zip'
@@ -87,7 +94,12 @@ try {
                 if ($total -gt 250MB) { throw 'Expanded archive exceeds size limit.' }
             } finally { $archive.Dispose() }
             Expand-Archive $Zip (Join-Path $Stage 'source')
-            $Source = (Get-ChildItem (Join-Path $Stage 'source') -Directory | Select-Object -First 1).FullName
+            $Extracted = @(Get-ChildItem (Join-Path $Stage 'source') -Directory)
+            if ($Extracted.Count -ne 1) { throw 'Unexpected source archive layout.' }
+            # Do not nest dependencies inside the long repository/commit archive name.
+            $Source = $BuildPaths.Source
+            Move-Item $Extracted[0].FullName $Source
+            $Venv = $BuildPaths.Venv
             # Verify every source file against the pinned Git tree before executing build code.
             $tree = Invoke-RestMethod "https://api.github.com/repos/$Repo/git/trees/${Commit}?recursive=1" -Headers $Headers
             if ($tree.truncated) { throw 'Source integrity tree is incomplete.' }
@@ -107,9 +119,9 @@ try {
             if ($known.Count -ne 0) { throw 'Archive is missing tracked files.' }
             Push-Location $Source
             try {
-                & $Python -m venv .venv
+                & $Python -m venv $Venv
                 if ($LASTEXITCODE -ne 0) { throw 'Virtual environment creation failed.' }
-                $BuildPython = Join-Path $Source '.venv\Scripts\python.exe'
+                $BuildPython = Join-Path $Venv 'Scripts\python.exe'
                 & $BuildPython -m pip install --disable-pip-version-check -e '.[dev]'
                 if ($LASTEXITCODE -ne 0) { throw 'Python dependency installation failed.' }
                 Push-Location web
