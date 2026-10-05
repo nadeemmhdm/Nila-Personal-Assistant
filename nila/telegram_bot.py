@@ -42,7 +42,7 @@ def disable(store,remove=False):
     return status(store)
 
 async def call(token,method,payload):
-    if method not in {'getMe','getUpdates','sendMessage','sendChatAction','editMessageText','answerCallbackQuery'}:raise TelegramError('Unsupported Telegram operation')
+    if method not in {'getMe','getUpdates','sendMessage','sendChatAction','editMessageText','answerCallbackQuery','deleteMessage'}:raise TelegramError('Unsupported Telegram operation')
     try:
         async with httpx.AsyncClient(timeout=30,follow_redirects=False) as c:
             r=await c.post('https://api.telegram.org/bot'+token+'/'+method,json=payload)
@@ -95,7 +95,15 @@ class Bridge:
         text=msg.get('text','').strip()
         if not text or len(text)>12000:return
         if text in {'/start','/help'}:
-            await self.send(c,'I’m Nila. Send a message to chat. /new starts a fresh conversation. /search off|quick|deep selects web mode. /think low|medium|high selects effort. /status shows your modes. Keep Nila running on your laptop.');return
+            await self.send(c,'I’m Nila. Send a message to chat. /new starts a fresh conversation. /search off|quick|deep selects web mode. /think low|medium|high selects effort. /status shows your modes. /model fast|medium|current switches the shared local model. Keep Nila running on your laptop.');return
+        if text.lower().split()[0]=='/model':
+            from .model_manager import select,selection
+            value=text.split(maxsplit=1)
+            try:
+                selected=await select(self.store,value[1].strip()) if len(value)>1 else selection(self.store)
+                await self.send(c,'Current model: '+selected['label']+'\n/model fast · /model medium · /model current')
+            except (NilaError,ValueError,RuntimeError) as exc:await self.send(c,str(exc))
+            return
         parts=text.lower().split()
         if parts[0] in {'/search','/think','/status'}:
             mode=c.get('search_mode','off');level=c.get('thinking_level','medium')
@@ -115,9 +123,10 @@ class Bridge:
             with self.store.db() as db:db.execute('UPDATE telegram_state SET chat_id=? WHERE id=1',(cid,))
         if text=='/new':await self.send(c,'New conversation ready.');return
         self.state('Thinking')
-        started=time.monotonic();stage='Thinking';indicator=None
+        from .conversation import thinking_message
+        started=time.monotonic();stage=thinking_message();indicator=None
         try:
-            indicator=await call(c['token'],'sendMessage',{'chat_id':c['chat_id'],'text':'Nila is thinking…'})
+            indicator=await call(c['token'],'sendMessage',{'chat_id':c['chat_id'],'text':stage+'…'})
         except TelegramError:pass
         async def animate():
             dots=0
@@ -130,25 +139,43 @@ class Bridge:
                 except TelegramError:pass
                 await asyncio.sleep(4)
         def progress(value):
-            nonlocal stage
-            stage=value
-        animation=asyncio.create_task(animate());answer=''
-        try:
-            async for part in reply(self.store,cid,text,learn_memory=c.get('share_memory',False),personal_context=c.get('share_memory',False),search_mode=c.get('search_mode','off'),thinking_level=c.get('thinking_level','medium'),progress=progress):answer+=part
-        except (NilaError,RuntimeError):answer='Nila could not answer right now. Check Ollama on your laptop or wait for the current local request to finish.'
-        finally:
-            animation.cancel()
+            pass
+        animation=asyncio.create_task(animate());answer='';last_edit=0.0
+        async def stop_animation():
+            if not animation.done():animation.cancel()
             with suppress(asyncio.CancelledError):await animation
+        async def remove_indicator():
+            nonlocal indicator
+            await stop_animation()
+            if indicator:
+                with suppress(TelegramError):await call(c['token'],'deleteMessage',{'chat_id':c['chat_id'],'message_id':indicator['message_id']})
+                indicator=None
+        try:
+            async for part in reply(self.store,cid,text,learn_memory=c.get('share_memory',False),personal_context=c.get('share_memory',False),search_mode=c.get('search_mode','off'),thinking_level=c.get('thinking_level','medium'),progress=progress):
+                if not answer:
+                    await stop_animation()
+                answer+=part
+                if indicator and time.monotonic()-last_edit>=3:
+                    from .terminal import plain_text
+                    with suppress(TelegramError):await call(c['token'],'editMessageText',{'chat_id':c['chat_id'],'message_id':indicator['message_id'],'text':plain_text(answer)[:1800] or '…','link_preview_options':{'is_disabled':True}})
+                    last_edit=time.monotonic()
+        except (NilaError,RuntimeError) as exc:answer=str(exc)
+        except BaseException:
+            await remove_indicator();raise
+        finally:await stop_animation()
         if config(self.store)!=c:return
-        if indicator:
-            with suppress(TelegramError):await call(c['token'],'editMessageText',{'chat_id':c['chat_id'],'message_id':indicator['message_id'],'text':f'Answered in {int(time.monotonic()-started)}s'})
         from .terminal import plain_text
         rendered=plain_text(answer or 'No answer was generated. Try again.')
-        messages=self.store.chat(cid)['messages'];mid=messages[-1]['id'] if messages else 0
+        messages=self.store.chat(cid)['messages'];mid=messages[-1]['id'] if messages and messages[-1]['role']=='assistant' else 0
         for offset in range(0,len(rendered),1800):
             if config(self.store)!=c:return
             payload={'chat_id':c['chat_id'],'text':rendered[offset:offset+1800],'link_preview_options':{'is_disabled':True}}
             if offset+1800>=len(rendered) and mid:payload['reply_markup']={'inline_keyboard':[[{'text':'Sources','callback_data':f'sources:{cid}:{mid}'}]]}
+            if offset==0 and indicator:
+                payload['message_id']=indicator['message_id']
+                try:await call(c['token'],'editMessageText',payload);continue
+                except TelegramError:
+                    await remove_indicator();payload.pop('message_id',None)
             await call(c['token'],'sendMessage',payload)
     async def loop(self):
         ensure(self.store)

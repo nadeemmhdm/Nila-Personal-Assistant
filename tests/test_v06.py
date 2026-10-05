@@ -52,7 +52,7 @@ def test_cache_offline_relevance_encryption_and_delete(tmp_path):
 def test_model_load_only_selects_after_success(tmp_path,monkeypatch):
     s=Store(tmp_path);c=TestClient(create_app(s));from nila import extensions
     async def models():return [{'name':'new:1b'}]
-    monkeypatch.setattr(extensions,'models',models);original=httpx.AsyncClient;seen=[]
+    monkeypatch.setattr(engine,'models',models);original=httpx.AsyncClient;seen=[]
     def handler(r):seen.append(json.loads(r.content));return httpx.Response(200,json={'done':True})
     monkeypatch.setattr(extensions.httpx,'AsyncClient',lambda **kw:original(transport=httpx.MockTransport(handler),**kw))
     assert c.post('/api/models/load',json={'model':'new:1b'}).status_code==200

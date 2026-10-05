@@ -12,8 +12,16 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from . import __version__
 from .storage import Store
 from .engine import models, reply, NilaError
+from .model_manager import DEFAULT_PROFILES
 
 class Settings(BaseModel):
+    model_profiles: dict[str,str] = Field(default_factory=lambda: DEFAULT_PROFILES.copy())
+    model_mode: Literal["fast","medium","current","custom"] = "current"
+    @field_validator("model_profiles")
+    @classmethod
+    def valid_profiles(cls,value):
+        from .model_manager import profiles
+        return profiles(value)
     goals: str = Field(default="",max_length=1000)
     response_style: Literal["Concise","Balanced","Detailed"] = "Balanced"
     thinking_level: Literal["low","medium","high"] = "medium"
@@ -21,7 +29,7 @@ class Settings(BaseModel):
     setup_complete: bool = False
     assistant_name: str = Field(default="Nila", min_length=1, max_length=40)
     user_name: str = Field(default="", max_length=60)
-    model: str = Field(default="llama3.2:1b", min_length=1,max_length=120,pattern=r"^[a-zA-Z0-9_.:/-]+$")
+    model: str = Field(default=DEFAULT_PROFILES["current"], min_length=1,max_length=120,pattern=r"^[a-zA-Z0-9_.:/-]+$")
     language: Literal["Auto","English","Malayalam"] = "Auto"
     temperature: float = Field(default=0.7,ge=0,le=1.5)
     num_ctx: Literal[2048,4096,8192] = 2048
@@ -111,6 +119,8 @@ def create_app(store=None):
     workspace_routes(app,store,scope,running)
     from .skills import register as skill_routes
     skill_routes(app,store)
+    from .model_manager import register as model_routes
+    model_routes(app,store)
     register(app,store,None)
     from .learning_api import register as register_learning
     lab=register_learning(app,store)
@@ -153,7 +163,7 @@ def create_app(store=None):
     def get_settings(): return store.settings()
 
     @app.put("/api/settings")
-    def put_settings(value:Settings): return store.save_settings(value.model_dump())
+    def put_settings(value:Settings): return store.save_settings(value.model_dump(exclude_unset=True))
 
     @app.get("/api/chats")
     def chats(): return store.chats()

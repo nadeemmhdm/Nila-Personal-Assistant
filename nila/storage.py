@@ -10,8 +10,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from platformdirs import user_data_dir
 from .vault import Vault, PREFIX
+from .model_manager import DEFAULT_PROFILES,normalize
 
-DEFAULTS = {'assistant_name':'Nila','user_name':'','model':'llama3.2:1b','language':'Auto','temperature':.7,'num_ctx':2048,'memory_enabled':True,'auto_memory':True,'auto_update':True,'description':'','position':'Other','completion_year':'','company':'','job_role':'','knowledge_enabled':True,'course':'','interests':'','tone':'Friendly','memory_review':True,'setup_complete':False,'thinking_level':'medium','goals':'','response_style':'Balanced'}
+DEFAULTS = {'assistant_name':'Nila','user_name':'','model':DEFAULT_PROFILES['current'],'model_profiles':DEFAULT_PROFILES,'model_mode':'current','language':'Auto','temperature':.7,'num_ctx':2048,'memory_enabled':True,'auto_memory':True,'auto_update':True,'description':'','position':'Other','completion_year':'','company':'','job_role':'','knowledge_enabled':True,'course':'','interests':'','tone':'Friendly','memory_review':True,'setup_complete':False,'thinking_level':'medium','goals':'','response_style':'Balanced'}
 
 class Store:
     def __init__(self,root=None,ephemeral=False):
@@ -44,6 +45,8 @@ class Store:
             cols={r[1] for r in db.execute('PRAGMA table_info(memories)')}
             if 'source' not in cols: db.execute("ALTER TABLE memories ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'")
             if 'fingerprint' not in cols: db.execute('ALTER TABLE memories ADD COLUMN fingerprint TEXT')
+            if not db.execute("SELECT 1 FROM settings WHERE key='model'").fetchone() and (db.execute('SELECT 1 FROM settings').fetchone() or db.execute('SELECT 1 FROM chats').fetchone()):
+                db.execute("INSERT INTO settings VALUES ('model',?)",(self.seal(json.dumps('llama3.2:1b')),))
             migrated=False
             for table,columns in {'settings':['value'],'chats':['title'],'messages':['content'],'memories':['content'],'notes':['content'],'tasks':['content'],'automations':['title','prompt'],'runs':['output']}.items():
                 for column in columns:
@@ -80,8 +83,16 @@ class Store:
         for field in fields: result[field]=self.open(result[field])
         return result
     def settings(self):
-        with self.db() as db: return DEFAULTS|{r['key']:json.loads(self.open(r['value'])) for r in db.execute('SELECT * FROM settings') if r['key'] in DEFAULTS}
+        with self.db() as db: return normalize(DEFAULTS|{r['key']:json.loads(self.open(r['value'])) for r in db.execute('SELECT * FROM settings') if r['key'] in DEFAULTS})
     def save_settings(self,values):
+        values=dict(values);old=self.settings()
+        if 'model_mode' in values and 'model' not in values and values['model_mode']!='custom':
+            from .model_manager import profiles
+            mapping=profiles(values.get('model_profiles',old['model_profiles']))
+            if values['model_mode'] not in mapping:raise ValueError('Unknown model mode')
+            values['model']=mapping[values['model_mode']]
+        merged=normalize(old|values)
+        values.update({k:merged[k] for k in ('model','model_mode','model_profiles')})
         with self.db() as db: db.executemany('INSERT OR REPLACE INTO settings VALUES (?,?)',[(k,self.seal(json.dumps(v))) for k,v in values.items() if k in DEFAULTS])
         return self.settings()
     def create_chat(self):

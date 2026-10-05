@@ -198,3 +198,13 @@ def register(app,store,scope,running):
         selected=scope(cid);selected.chat(cid)
         with selected.db() as db:db.execute('DELETE FROM chat_documents WHERE chat_id=? AND document_id=?',(cid,iid))
         return {'ok':True}
+
+    @app.get('/api/memory-overview')
+    def memory_overview():
+        from .learning import knowledge,sessions
+        from .knowledge_cache import backfill
+        backfill(store)
+        lessons=knowledge(store);settings=store.settings()
+        with store.db() as db:cached=db.execute('SELECT COUNT(*) FROM web_knowledge').fetchone()[0]
+        recent=sessions(store)[:5]
+        return {'personal':len(store.items('memories')),'pending':len(ws.inbox(store)),'lessons':len(lessons),'enabled_lessons':sum(bool(x['enabled']) for x in lessons),'web':cached,'total':len(store.items('memories'))+len(lessons)+cached,'memory_enabled':settings['memory_enabled'],'knowledge_enabled':settings['knowledge_enabled'],'memory_review':settings['memory_review'],'recent_learning':[{'status':x['status'],'error':x['error'],'topic':x['config']['topic'],'save_knowledge':x['config'].get('save_knowledge',True)} for x in recent]}

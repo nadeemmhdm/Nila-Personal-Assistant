@@ -56,5 +56,8 @@ async def search(query,mode='off'):
 
 
 def needs_search(query):
-    """Skip stable help; look up explicit searches and time-sensitive requests."""
-    return bool(re.search(r'\b(search|web|online|latest|current|today|now|news|weather|price|stock|score|recent|live|verify|sources|research)\b|ഇന്ന്|ഇപ്പോൾ|വാർത്ത|കാലാവസ്ഥ',query,re.I))
+    """Honor web mode for factual questions; skip clear personal/writing/basic-study tasks."""
+    if re.search(r'\b(search|web|online|latest|current|today|now|news|weather|price|stock|score|recent|live|verify|sources|research|founder|founded|owner|ceo|president|creator|created|developed)\b|ഇന്ന്|ഇപ്പോൾ|വാർത്ത|കാലാവസ്ഥ|ആരാണ്',query,re.I):return True
+    if re.search(r'^(hi|hello|hey|thank you|thanks|continue|rewrite|translate|summarize|summarise|write|debug|refactor)\b|\b(my name|my profile|who am i|remember me|remember that|attached file)\b',query,re.I):return False
+    if re.search(r'\b(explain|what is|what are|teach|example)\b',query,re.I) and re.search(r'\b(python|dictionar(?:y|ies)|list|loop|variable|function|algebra|addition|grammar|noun|verb)\b',query,re.I):return False
+    return True

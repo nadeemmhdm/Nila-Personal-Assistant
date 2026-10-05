@@ -36,7 +36,7 @@ def test_regenerate_failure_keeps_original_and_does_not_create_branch(store,monk
 
 def test_regenerate_cancellation_keeps_original(store,monkeypatch):
     cid,mid=seed(store);before=store.chat(cid)
-    async def models():return [{'name':'llama3.2:1b'}]
+    async def models():return [{'name':'qwen3:4b'},{'name':'llama3.2:1b'}]
     monkeypatch.setattr(engine,'models',models)
     class Response:
         status_code=200

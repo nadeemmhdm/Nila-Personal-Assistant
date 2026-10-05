@@ -7,9 +7,14 @@ IDENTITY="""You are Nila, a friendly personal assistant. Answer the user's lates
 
 
 def developer_question(text):
-    text=text.casefold()
-    if re.search(r'^\s*(developer|creator)( details| info| information)?[?.! ]*$|\b(your|nila.s)\s+(developer|creator)\b|ആരാണ്.*നിർമ്മി|ആരാ.*ഉണ്ടാക്കി',text):return True
-    return bool(re.search(r'\bwho\b.{0,30}\b(created|made|built|developed)\b.{0,25}\b(you|nila)\b|\b(your|nila.s)\s+(developer|creator)\b|\b(ninne|nila).{0,25}(undakki|develop|create).{0,20}(aar|ar)|ആരാണ്.{0,25}(നിന്നെ|നില).{0,25}(നിർമ്മി|ഉണ്ടാക്കി)',text))
+    text=' '.join(text.casefold().strip().rstrip('?.!').split())
+    # Whole identity requests only: external founders/creators must reach the model/search.
+    return bool(re.fullmatch(r"(?:who (?:created|made|built|developed) (?:you|nila)|who is (?:your|nila(?:'s)?) (?:developer|creator)|(?:your |nila(?:'s)? )?(?:developer|creator)(?: details| info| information)?|(?:ninte|nila) developer (?:aar|aara|aaranu|aarane)|(?:ninne|nila) (?:undakkiyath|develop cheythath) (?:aar|aara|aaranu)|നിന്നെ (?:ഉണ്ടാക്കിയത്|നിർമ്മിച്ചത്) ആരാണ്)",text))
+
+THINKING_MESSAGES=('Thinking','Working on it','Let me think','Preparing your answer','Checking the request','Working on your question')
+def thinking_message():
+    import random
+    return random.choice(THINKING_MESSAGES)
 
 
 def greeting_reply(text,settings):

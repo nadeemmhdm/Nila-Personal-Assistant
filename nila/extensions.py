@@ -86,13 +86,10 @@ def register(app,store,scheduler):
 
     @app.post('/api/models/load')
     async def load(value:ModelPull):
-        token=store.acquire()
+        from .model_manager import select
         try:
-            if value.model not in [m['name'] for m in await models()]:raise HTTPException(400,'Download this model first')
-            async with httpx.AsyncClient(timeout=180,trust_env=False) as client:
-                r=await client.post(ollama_url()+'/api/generate',json={'model':value.model,'prompt':'','stream':False,'keep_alive':'5m'})
-                r.raise_for_status()
-                if r.json().get('error'):raise ValueError('Ollama could not load this model')
-            return store.save_settings({'model':value.model})
+            await select(store,value.model,warm=True)
+            return store.settings()
+        except (NilaError,ValueError) as exc:raise HTTPException(400,str(exc))
+        except RuntimeError as exc:raise HTTPException(409,str(exc))
         except httpx.HTTPError:raise HTTPException(400,'Model could not load. Check Ollama and available RAM.') from None
-        finally:store.release(token)

@@ -2,9 +2,9 @@
 
 **A personal AI workspace for your browser, terminal and private Telegram chat.**
 
-Version **0.6.0** · Developed by [Nadeem](https://github.com/nadeemmhdm) · MIT license
+Version **0.7.0** · Developed by [Nadeem](https://github.com/nadeemmhdm) · MIT license
 
-Nila uses Ollama on your computer. `llama3.2:1b` is recommended for getting started; choose any installed compatible text model. Personal conversations, memories and attached text stay local unless you deliberately use an online feature. No Ollama API key is needed for the local endpoint.
+Nila uses Ollama on your computer. New installs default to **Smart (`qwen3:4b`)**. Select **Fast (`qwen3:0.6b`)**, **Medium (`qwen3:1.7b`)**, or any installed compatible text model. Existing selections, including `llama3.2:1b`, are preserved. Personal conversations, memories and attached text stay local unless you deliberately use an online feature. No Ollama API key is needed for the local endpoint.
 
 ## Install on Windows — one command
 
@@ -174,10 +174,26 @@ The server binds to loopback only. Do not publish it through a tunnel or expose 
 
 Nila source code is licensed under the [MIT License](LICENSE), copyright 2026 Nadeem Muhammed. Ollama models, Gemini services and third-party dependencies retain their own licenses and terms.
 
-## New in 0.6.0
+## New in 0.7.0
 
-See [release notes](docs/releases/v0.6.0.md) for stable-release updates, Models and Skills dashboards, offline web-reference caching, Telegram modes, persistent attachments and local browser voice capabilities.
+See [release notes](docs/releases/v0.7.0.md) for stable-release updates, Models and Skills dashboards, offline web-reference caching, Telegram modes, persistent attachments and local browser voice capabilities.
 
 Use **Workspace → Models → Load & use** to switch local models. Import a Markdown skill through **Workspace → Skills → Add skill**. At most one skill is active; it provides instructions, not executable tools. **Workspace → Knowledge** manages dated saved web references.
 
 Voice input is available only where the browser supports on-device recognition with an installed language pack; read-aloud needs an installed local voice. These controls do not send audio to Gemini.
+
+## Shared model profiles
+
+Use the header selector or Workspace → Models. Missing models show the exact `ollama pull` command; Nila never silently falls back to a different model. Profile mappings can be changed under Models → Configure profile model names.
+
+```sh
+nila model
+nila model use fast
+nila model use medium
+nila model use current
+nila model use llama3.2:1b
+```
+
+Telegram: `/model`, `/model fast`, `/model medium`, `/model current`. All interfaces share the same saved selection and apply it to subsequent requests without a restart. A running generation or Learning Lab session retains its original model.
+
+Memory shows counts for personal facts, pending suggestions, accepted Learning Lab lessons and saved web topics. Opening Memory also recovers web references from up to 200 older completed answers once. Saved knowledge is reusable offline when knowledge recall is enabled. Model-reviewed notes and retrieved snippets can be wrong or outdated; Nila does not train its model weights.

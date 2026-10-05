@@ -24,12 +24,11 @@ def banner():
 
 async def render_reply(store,cid,prompt,**kwargs):
     from .engine import reply
-    text='';stage='Nila is thinking…'
-    with Live(Spinner('dots',text=stage,style='cyan'),console=console,refresh_per_second=12,transient=False,vertical_overflow='visible') as live:
+    from .conversation import thinking_message
+    text='';stage=thinking_message()
+    with Live(Spinner('simpleDots',text=stage,style='cyan'),console=console,refresh_per_second=12,transient=False,vertical_overflow='visible') as live:
         def progress(label):
-            nonlocal stage
-            stage=label
-            if not text:live.update(Spinner('dots',text=stage,style='cyan'))
+            pass  # Keep one chosen message until the first response token.
         async for part in reply(store,cid,prompt,progress=progress,**kwargs):
             text+=part;live.update(Markdown(prepared(text)))
         live.update(Markdown(prepared(text)) if text else Text('No response generated.',style='dim'))

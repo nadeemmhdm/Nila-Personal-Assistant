@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0 — Shared Models
+
+- Central Fast/Medium/Smart model profiles across Web, CLI and Telegram, configurable mappings and safe legacy selection migration.
+- Icon-only composer controls and the supplied lotus logo.
+- One thinking indicator per request, removed on streaming; Telegram edits the same message.
+- Strict Nila identity matching and isolated public research context fix third-party founder confusion.
+- Unified memory counts, Learning Lab status and one-time recovery of older saved web references.
+
+
 ## 0.6.0 — Personal Workspace
 
 See [complete release notes](docs/releases/v0.6.0.md). Stable-release prebuilt updates, Telegram controls, skills, voice, local knowledge cache, persistent attachments, model loading and interface fixes.

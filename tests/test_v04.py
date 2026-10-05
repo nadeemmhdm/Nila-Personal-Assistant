@@ -48,7 +48,7 @@ def test_search_sends_only_explicit_query_and_persists_sources(store,monkeypatch
     client=TestClient(create_app(store))
     result=client.post(f'/api/chats/{cid}/reply',json={'content':'PRIVATE_PROMPT','search_mode':'quick','search_query':'public query'})
     assert queries==['public query']
-    assert 'PRIVATE_MEMORY' in json.dumps(seen) # stays in local Ollama context only
+    assert 'PRIVATE_MEMORY' not in json.dumps(seen) # public research excludes personal identity context
     assert 'Web evidence' in json.dumps(seen)
     last=store.chat(cid)['messages'][-1]
     assert '### Sources' not in last['content']

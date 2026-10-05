@@ -66,7 +66,7 @@ def mock_ollama(monkeypatch, missing=False, broken=False):
     seen=[]
     def handler(request):
         if request.url.path=='/api/show':return httpx.Response(200,json={'capabilities':[]})
-        if request.url.path=='/api/tags': return httpx.Response(200,json={'models':[] if missing else [{'name':'llama3.2:1b'}]})
+        if request.url.path=='/api/tags': return httpx.Response(200,json={'models':[] if missing else [{'name':'qwen3:4b'},{'name':'llama3.2:1b'}]})
         seen.append(json.loads(request.content))
         lines=[{'message':{'content':'Hello '},'done':False},{'message':{'content':'Nadeem.'},'done':False}]
         if not broken: lines.append({'done':True})
@@ -82,7 +82,7 @@ def test_streaming_saves_history(store,client,monkeypatch):
     assert ''.join(x.get('token','') for x in events)=='Hello Nadeem.'
     assert events[-1]=={'done':True}
     assert store.chat(cid)['messages'][-1]['status']=='complete'
-    assert seen[0]['model']=='llama3.2:1b'
+    assert seen[0]['model']=='qwen3:4b'
     assert seen[0]['messages'][-1]['content']=='Explain Python dictionaries'
     assert seen[0]['options']['num_ctx']==2048
 
@@ -103,7 +103,7 @@ def test_broken_stream_persists_partial_response(store,client,monkeypatch):
     assert message['content']=='Hello Nadeem.'
 
 def test_cancellation_releases_lease(store,monkeypatch):
-    async def fake_models(): return [{'name':'llama3.2:1b'}]
+    async def fake_models(): return [{'name':'qwen3:4b'},{'name':'llama3.2:1b'}]
     monkeypatch.setattr(engine,'models',fake_models)
     class Response:
         status_code=200

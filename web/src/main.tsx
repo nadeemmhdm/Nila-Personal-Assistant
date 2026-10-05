@@ -1,3 +1,5 @@
+import {ModelSelector} from "./ModelSelector";
+import {MemoryOverview} from "./LocalTools";
 import React, { useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { Workspace, ChatWorkspace } from "./Workspace";
@@ -195,6 +197,7 @@ function App() {
   const attachmentTicket=useRef(0);
   const [confirmation,setConfirmation]=useState<{message:string;resolve:(v:boolean)=>void}|null>(null);
   const confirmAction=(message:string)=>new Promise<boolean>(resolve=>setConfirmation({message,resolve}));
+  const [thinkingLabel,setThinkingLabel]=useState("Thinking");
   const [progress,setProgress]=useState(""),[started,setStarted]=useState(0),[elapsed,setElapsed]=useState(0);
   const [sources,setSources]=useState<{id:number;items:any[]}|null>(null);
   const sourceTicket=useRef(0);
@@ -325,7 +328,7 @@ function App() {
     selection.current++;
     sendLock.current = true;
     setFollowupQuestions([]);
-    sourceTicket.current++;setStarted(Date.now());setElapsed(0);setProgress('Checking local model');setRegenerating(regenerateId);setRegenerateBox(null);setSources(null);
+    setThinkingLabel(["Thinking","Working on it","Let me think","Preparing your answer","Checking the request"][Math.floor(Math.random()*5)]);sourceTicket.current++;setStarted(Date.now());setElapsed(0);setProgress('Checking local model');setRegenerating(regenerateId);setRegenerateBox(null);setSources(null);
     setBusy(true);
     setError("");
     setReplyText("");
@@ -568,7 +571,7 @@ function App() {
       <aside className={mobile ? "open" : ""}>
         <div className="brand">
           <span className="brand-icon">
-            <Sparkles size={23} />
+            <img className="nila-logo" src="/nila-logo.png" alt="Nila logo"/>
           </span>
           <span>
             nila<span className="brand-dot">.</span>
@@ -701,20 +704,7 @@ function App() {
                 : "Make yourself at home"}
             </span>
           </div>
-          <button
-            className="model-pill"
-            disabled={busy}
-            onClick={() => navigate("settings")}
-          >
-            <span
-              className={
-                "status-dot " +
-                (status?.online && status.model_ready ? "ready" : "")
-              }
-            />
-            {settings.model}
-            <ChevronDown size={13} />
-          </button>
+          <ModelSelector disabled={busy||uploading} onError={setError}/>
         </header>
         {error && (
           <div role="alert" className="error-banner">
@@ -823,7 +813,7 @@ function App() {
                     >
                       <div className="message-avatar">
                         {m.role === "assistant" ? (
-                          <Sparkles size={17} />
+                          <img className="nila-logo" src="/nila-logo.png" alt=""/>
                         ) : (
                           <span>
                             {(settings.user_name || "Y")[0].toUpperCase()}
@@ -840,7 +830,7 @@ function App() {
                           )}
                         </div>
                         <div className={"markdown"+(regenerating===m.id?" streaming":"")}>
-                          {regenerating===m.id&&!replyText?<div className="skeleton"><i/><i/></div>:<RichText
+                          {regenerating===m.id&&!replyText?<div className="responding" role="status">{thinkingLabel}<span className="dots"><i/><i/><i/></span></div>:<RichText
                             text={
                               (regenerating===m.id?replyText:m.content) ||
                               (m.status !== "complete"
@@ -848,7 +838,7 @@ function App() {
                                 : "")
                             }
                           />}
-                          {regenerating===m.id&&<small role="status">{progress} · {elapsed}s</small>}
+                          
                         </div>
                         {editing === m.id && (
                           <div className="edit-prompt">
@@ -949,29 +939,26 @@ function App() {
                   {busy && !regenerating && (
                     <article className="message assistant">
                       <div className="message-avatar">
-                        <Orb small busy />
+                        <img className="nila-logo" src="/nila-logo.png" alt=""/>
                       </div>
                       <div className="message-body">
                         <div className="message-meta">
                           {settings.assistant_name}
-                          <small className="responding">
-                            {progress} · {elapsed}s
+                          {!replyText&&<small className="responding" role="status">
+                            {thinkingLabel}
                             <span className="dots">
                               <i />
                               <i />
                               <i />
                             </span>
-                          </small>
+                          </small>}
                         </div>
                         {replyText ? (
                           <div className="markdown streaming">
                             <RichText text={replyText} />
                           </div>
                         ) : (
-                          <div className="skeleton">
-                            <i />
-                            <i />
-                          </div>
+                          null
                         )}
                       </div>
                     </article>
@@ -1013,9 +1000,9 @@ function App() {
                   <div className="composer-tools">
                     <button type="button" className="icon" aria-label="Attach file" disabled={busy||uploading} onClick={()=>fileInput.current?.click()}><Paperclip size={17}/></button>
                     <input ref={fileInput} type="file" hidden accept=".pdf,.txt,.md,.csv,.json,.py,.js,.ts,.html,.css" onChange={e=>{const f=e.target.files?.[0];if(f)void attachFile(f);e.target.value=''}}/>
-                    <VoiceInput disabled={busy||uploading} onText={text=>setInput(v=>(v+" "+text).trim())} onError={message=>setError(message)}/><select aria-label="Search mode" value={searchMode} disabled={busy} onChange={e=>setSearchMode(e.target.value)}><option value="off">Web off</option><option value="quick">Quick search</option><option value="deep">Deep search</option></select>
-                    <select aria-label="Thinking level" value={settings.thinking_level} disabled={busy} onChange={async e=>{const thinking_level=e.target.value as Settings['thinking_level'];try{const s=await api<Settings>('/settings','PUT',{...await api<Settings>('/settings'),thinking_level});setSettings(s);setDraft(s)}catch(err){fail(err)}}}><option value="low">Think · Low</option><option value="medium">Think · Medium</option><option value="high">Think · High</option></select>
-                    <select aria-label="Local model" value={settings.model} disabled={busy} onChange={async e=>{try{const s=await api<Settings>('/settings','PUT',{...await api<Settings>('/settings'),model:e.target.value});setSettings(s);setDraft(s);await refreshStatus()}catch(err){fail(err)}}}>{!(status?.models||[]).some(m=>m.name===settings.model)&&<option value={settings.model}>{settings.model}</option>}{status?.models.map(m=><option key={m.name} value={m.name}>{m.name}</option>)}</select>
+                    <VoiceInput disabled={busy||uploading} onText={text=>setInput(v=>(v+" "+text).trim())} onError={message=>setError(message)}/><label className="icon-select" title={"Web search: "+searchMode}><Globe size={17}/><select aria-label="Search mode" value={searchMode} disabled={busy} onChange={e=>setSearchMode(e.target.value)}><option value="off">Web off</option><option value="quick">Quick search</option><option value="deep">Deep search</option></select></label>
+                    <label className="icon-select" title={"Thinking: "+settings.thinking_level}><Brain size={17}/><select aria-label="Thinking level" value={settings.thinking_level} disabled={busy} onChange={async e=>{const thinking_level=e.target.value as Settings['thinking_level'];try{const s=await api<Settings>('/settings','PUT',{...await api<Settings>('/settings'),thinking_level});setSettings(s);setDraft(s)}catch(err){fail(err)}}}><option value="low">Think · Low</option><option value="medium">Think · Medium</option><option value="high">Think · High</option></select></label>
+                    <ModelSelector compact disabled={busy||uploading} onError={setError}/>
                   </div>
                   <div>
                     <kbd>Shift + Enter for a new line</kbd>
@@ -1426,6 +1413,7 @@ function App() {
                     ? "Keep notes close by. Notes are not automatically sent to the model."
                     : "A simple list for what comes next. Tasks do not send reminders."}
               </p>
+              {page==="memories"&&<MemoryOverview/>}
               <form className="item-form" onSubmit={saveItem}>
                 <textarea
                   required

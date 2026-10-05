@@ -153,7 +153,7 @@ def knowledge(store):
     with store.db() as db:return [store.decode(r,['topic','content']) for r in db.execute('SELECT * FROM knowledge ORDER BY created DESC')]
 
 def knowledge_context(store,query):
-    terms=set(re.findall(r'\w{3,}',query.lower()))
+    terms=set(re.findall(r'\w{3,}',query.casefold()))-{'the','what','who','how','explain','tell','about','please','does','this','that','are','and','for','with','can'}
     if not terms:return ''
     ranked=[]
     for k in knowledge(store):

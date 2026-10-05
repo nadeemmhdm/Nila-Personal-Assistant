@@ -1,3 +1,4 @@
+import {Mic,MicOff,VolumeX,Download} from 'lucide-react';
 import {useEffect,useRef,useState} from 'react';
 export function speak(text:string){
  if(!('speechSynthesis' in window))throw Error('Read aloud is unavailable in this browser.');
@@ -21,5 +22,5 @@ export function VoiceInput({disabled,onText,onError}:{disabled:boolean;onText:(t
   }catch{onError('Could not start local speech recognition. Check microphone permission and language support.')}
  }
  async function installPack(){const API=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;if(!API?.install)return;setInstalling(true);try{const ok=await API.install({langs:[navigator.language||'en-US'],processLocally:true});setNeedsPack(!ok);onError(ok?'Local speech pack ready. Click Microphone to begin.':'Speech pack could not be installed. Check browser language support and internet.')}catch{onError('Browser speech pack installation failed.')}finally{setInstalling(false)}}
- return <>{needsPack&&<button type="button" disabled={installing} onClick={installPack}>{installing?'Installing voice…':'Install local speech pack'}</button>}<button type="button" disabled={disabled} aria-pressed={listening} onClick={toggle}>{listening?'Stop microphone':'Microphone'}</button><button type="button" onClick={()=>window.speechSynthesis?.cancel()}>Stop speech</button></>
+ return <>{needsPack&&<button type="button" className="icon" title="Install local speech pack" aria-label="Install local speech pack" disabled={installing} onClick={installPack}><Download size={17}/></button>}<button type="button" className="icon" title={listening?"Stop microphone":"Microphone"} aria-label={listening?"Stop microphone":"Microphone"} disabled={disabled} aria-pressed={listening} onClick={toggle}>{listening?<MicOff size={17}/>:<Mic size={17}/> }</button><button type="button" className="icon" title="Stop speech" aria-label="Stop speech" onClick={()=>window.speechSynthesis?.cancel()}><VolumeX size={17}/></button></>
 }

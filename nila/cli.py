@@ -8,6 +8,7 @@ import getpass
 from . import __version__
 from .storage import Store
 from .engine import reply, models, NilaError
+from .model_manager import DEFAULT_PROFILES
 
 def parser():
     p = argparse.ArgumentParser(prog="nila",description="Nila Personal Assistant · local Ollama chat")
@@ -55,12 +56,12 @@ def parser():
     svc=sub.add_parser("service",help="Control the Windows login worker")
     svc.add_argument("action",choices=["start","stop","enable","disable"])
     pull = sub.add_parser("pull",help="Download a local Ollama model")
-    pull.add_argument("model",nargs="?",default="llama3.2:1b")
+    pull.add_argument("model",nargs="?",default=DEFAULT_PROFILES["current"])
     sub.add_parser("doctor",help="Check Ollama, model, and storage")
     sub.add_parser("models",help="List installed Ollama models")
     model = sub.add_parser("model",help="Set the default model")
-    model.add_argument("action",choices=["use"])
-    model.add_argument("name")
+    model.add_argument("action",nargs="?",choices=["use"])
+    model.add_argument("name",nargs="?")
     sub.add_parser("history",help="List conversations")
     delete = sub.add_parser("delete",help="Delete one conversation")
     delete.add_argument("id")
@@ -306,10 +307,10 @@ def main():
                     raise NilaError("NILA-002: Run: ollama pull " + store.settings()["model"])
                 print("Ready. Run nila or nila web.")
         elif args.command == "model":
-            from .server import Settings
-            settings = Settings(**(store.settings() | {"model":args.name}))
-            store.save_settings(settings.model_dump())
-            print(f"Default model: {args.name}")
+            from .model_manager import select,selection
+            if args.action=='use' and not args.name:raise ValueError('Use: nila model use fast|medium|current|MODEL_NAME')
+            active=asyncio.run(select(store,args.name)) if args.action=='use' else selection(store)
+            print(f"Current model: {active['label']}\nModel: {active['model']}")
         elif args.command == "settings":
             from .server import Settings
             values = store.settings()

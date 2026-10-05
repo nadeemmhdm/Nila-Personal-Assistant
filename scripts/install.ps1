@@ -194,8 +194,8 @@ try {
         try { Invoke-RestMethod 'http://127.0.0.1:11434/api/tags' -TimeoutSec 3 | Out-Null }
         catch { Start-Process ollama.exe -ArgumentList 'serve' -WindowStyle Hidden; Start-Sleep -Seconds 3 }
         $models = Invoke-RestMethod 'http://127.0.0.1:11434/api/tags' -TimeoutSec 10
-        if ($models.models.name -notcontains 'llama3.2:1b') {
-            & ollama.exe pull llama3.2:1b
+        if ($models.models.name -notcontains 'qwen3:4b') {
+            & ollama.exe pull qwen3:4b
             if ($LASTEXITCODE -ne 0) { throw 'Model download failed. Rerun installer to resume.' }
         }
         if (-not $NoStartup) {
