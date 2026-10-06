@@ -29,3 +29,5 @@ The Windows MAX_PATH repair keeps source and virtual-environment paths short rat
 - Google tests cover encrypted credentials, masked status, account confirmation, granted-scope rejection, expiration, refresh/retry, disconnect during refresh, fixed read-only endpoints, cross-origin rejection and explicit encrypted import.
 - Earlier Chromium integration checks exercised file + text/file-only requests, model download/load, browser pack installation and English locale fallback, read-aloud toggling, logo serving, mobile layout and About documentation. Browser speech and Ollama were simulated.
 - Real Google OAuth sign-in, production PHP hosting, Google service entitlements, native Windows audio and real Ollama answer quality require deployment/hardware validation; they are not established by mocked tests.
+
+Google Chromium flow also passed: configure broker, connect, local account confirmation, preview, mobile overflow and actual encrypted document import. Google responses were simulated. Linux CI executes the PHP handoff tests against a real PHP process.

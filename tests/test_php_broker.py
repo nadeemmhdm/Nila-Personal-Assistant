@@ -39,7 +39,7 @@ def test_broker_auth_scope_state_denial_and_replay(broker):
     from urllib.parse import urlsplit,parse_qs
     fields=parse_qs(urlsplit(auth.headers['location']).query)
     assert fields['state']==[sid] and 'gmail.readonly' in fields['scope'][0] and 'youtube' not in fields['scope'][0]
-    assert 'HttpOnly' in auth.headers['set-cookie'] and 'Secure' in auth.headers['set-cookie']
+    assert 'httponly' in auth.headers['set-cookie'].lower() and 'secure' in auth.headers['set-cookie'].lower()
     assert client.get('?action=callback&state='+sid+'&error=access_denied').status_code==400
     cookie=auth.headers['set-cookie'].split(';')[0]
     denied=client.get('?action=callback&state='+sid+'&error=access_denied',headers={'Cookie':cookie})
