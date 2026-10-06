@@ -4,9 +4,9 @@ from pathlib import Path
 
 def add_parsers(sub):
     p=sub.add_parser('google',help='Connect read-only Google services through your PHP broker')
-    p.add_argument('action',choices=['setup','status','connect','read','disconnect'],nargs='?',default='status')
+    p.add_argument('action',choices=['setup','status','check','connect','read','disconnect'],nargs='?',default='status')
     p.add_argument('service',nargs='?',choices=['gmail','drive','docs','sheets','classroom','youtube','meet'])
-    p.add_argument('--item',default='');p.add_argument('--range',dest='cell_range',default='A1:Z100')
+    p.add_argument('--domain',default='');p.add_argument('--item',default='');p.add_argument('--range',dest='cell_range',default='A1:Z100')
     p.add_argument('--page-token',default='')
     p=sub.add_parser("speak",help="Read text aloud with an installed Windows offline voice");p.add_argument("text")
     sub.add_parser("listen",help="Transcribe one utterance using installed Windows offline speech recognition")
@@ -37,10 +37,11 @@ def execute(args,store):
     if c=='google':
         from . import google_connect as google
         if args.action=='setup':
-            url=input('Your trusted HTTPS PHP broker URL: ').strip()
+            url=args.domain or input('Your OAuth website domain (example: connect.example.com): ').strip()
             key=getpass.getpass('Private deployment pairing key (hidden): ')
-            show(google.configure(store,url,key))
+            show(google.configure(store,url,key));show(asyncio.run(google.check_connection(store)))
         elif args.action=='status':show(google.status(store))
+        elif args.action=='check':show(asyncio.run(google.check_connection(store)))
         elif args.action=='disconnect':show(google.disconnect(store,args.service))
         elif args.action=='read':show(asyncio.run(google.read(store,args.service,args.item,args.cell_range,args.page_token)))
         elif args.action=='connect':

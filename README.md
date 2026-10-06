@@ -214,13 +214,13 @@ Files stay attached to a conversation until removed. Send files alone to summari
 
 ### Public landing-page hosting
 
-The `Nila landing page` workflow publishes the same static About page to GitHub Pages. Enable **Settings → Pages → Source: GitHub Actions** once, then run the workflow (subsequent main pushes redeploy automatically). No user chat, memory, API credentials or local server is deployed. All assets use relative paths so the project URL works. The local `/about/` page does not depend on public hosting.
+The `Nila landing page` workflow builds the same static About page and saves it as the `nila-landing-site` artifact. If Pages is disabled, it reports that setup is required and does not claim a deployment. Once configured, it publishes to GitHub Pages. Enable **Settings → Pages → Source: GitHub Actions** once, then run the workflow (subsequent main pushes redeploy automatically). No user chat, memory, API credentials or local server is deployed. All assets use relative paths so the project URL works. The local `/about/` page does not depend on public hosting.
 
 ## Connect Google services through a PHP website
 
-Open **Workspace → Google** to connect Gmail, Drive, Docs, Sheets, Classroom, YouTube or Meet individually. The included PHP OAuth broker handles sign-in; Nila reads Google data directly on your laptop. Preview selected content and use it in a local chat. Gemini cannot read these connections or imported documents. The initial integration is read-only.
+Open **Workspace → Google** to connect Gmail, Drive, Docs, Sheets, Classroom, YouTube or Meet individually. The separately delivered PHP OAuth broker handles sign-in; Nila reads Google data directly on your laptop. Preview selected content and use it in a local chat. Gemini cannot read these connections or imported documents. The initial integration is read-only.
 
-Deploy `oauth-broker/public/` to an HTTPS PHP 8.2+ host and register a Google Cloud **Web application** OAuth client. Configure the Google Client Secret on that server, then enter the broker URL and private pairing key in Nila. Your laptop does not need a public address. GitHub Pages cannot run this PHP endpoint.
+Deploy the `public/` folder from the separate **Nila-PHP-OAuth-Website-v0.8.1.zip** to an HTTPS PHP 8.2+ host and register a Google Cloud **Web application** OAuth client. Configure the Google Client Secret on that server, then enter your domain and private pairing key in Nila; Nila adds HTTPS and the endpoint and checks the connection. Your laptop does not need a public address. GitHub Pages cannot run this PHP endpoint.
 
 See [Google connections: deployment, permissions and commands](docs/GOOGLE_CONNECT.md), also bundled in **About Nila & docs**. Live Google access requires your own deployment and consent; this repository does not include an already connected Google application.
 
@@ -230,3 +230,5 @@ nila google connect gmail
 nila google read gmail
 nila google status
 ```
+
+The PHP website source is distributed separately, not in the current repository. Its ZIP includes `START_HERE_MALAYALAM.md`, full OAuth setup and hosting instructions. Existing historical releases are unchanged.

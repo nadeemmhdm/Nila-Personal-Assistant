@@ -33,3 +33,10 @@ The Windows MAX_PATH repair keeps source and virtual-environment paths short rat
 Google Chromium flow also passed: configure broker, connect, local account confirmation, preview, mobile overflow and actual encrypted document import. Google responses were simulated. Linux CI executes the PHP handoff tests against a real PHP process.
 
 Linux CI passed 119 tests, including both PHP router integration tests, and built/smoke-tested the standalone binary. PHP server tests are Linux-only; Windows validates the Nila client and updater rather than requiring PHP hosting extensions.
+
+## 0.8.1 validation
+
+- Local Nila suite: 133 passed, including domain normalization, unsafe URL rejection and callback mismatch checks.
+- TypeScript/production Web build passed. Chromium exercised domain setup, connection confirmation, preview, mobile layout and actual encrypted local document import using simulated Google responses.
+- The separate PHP ZIP passed syntax checks and 6 real PHP router tests under PHP 8.3, covering both environment and private-file configuration. Its PHP source/tests are no longer in the repository.
+- The previous Pages failure was a 404 from configure-pages because the repository had no Pages site. The updated workflow builds an artifact and clearly reports that deployment needs setup when Pages is disabled. Public deployment requires repository administration; a successful build with skipped deployment does not mean the site is online.

@@ -4,7 +4,7 @@ import {workApi} from './Workspace';
 
 type Service={id:string;name:string;description:string;connected:boolean;email:string;scope:string};
 export function GoogleConnect({openChat}:{openChat:(id:string)=>void}){
- const [data,setData]=useState<{configured:boolean;url:string;services:Service[]}|null>(null);
+ const [data,setData]=useState<{configured:boolean;url:string;callback_url?:string;services:Service[]}|null>(null);
  const [url,setUrl]=useState(''),[key,setKey]=useState(''),[selected,setSelected]=useState('gmail'),[item,setItem]=useState(''),[range,setRange]=useState('A1:Z100');
  const [pending,setPending]=useState(''),[loginUrl,setLoginUrl]=useState(''),[confirm,setConfirm]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[result,setResult]=useState<any>(null);
  const alive=useRef(true);
@@ -23,9 +23,9 @@ export function GoogleConnect({openChat}:{openChat:(id:string)=>void}){
  <p>Connect through your own PHP OAuth website. Google data is read on this laptop. Gemini cannot access these connections, tokens or imported files.</p>
  {error&&<p className="inline-error" role="alert">{error}</p>}{notice&&<p className="section-notice" role="status">{notice}</p>}
  <details open={!data?.configured}><summary>OAuth website setup</summary><p>Use a broker that you own or trust: its operator can process authorization tokens. The Google Client Secret belongs on the PHP server, never in this form.</p>
- <label>HTTPS broker URL<input placeholder="https://connect.example.com/index.php" value={url} onChange={e=>setUrl(e.target.value)} maxLength={1000}/></label>
+ <label>OAuth website domain<input placeholder="connect.example.com" value={url} onChange={e=>setUrl(e.target.value)} maxLength={1000}/></label>
  <label>Private deployment pairing key<input type="password" autoComplete="new-password" value={key} onChange={e=>setKey(e.target.value)} maxLength={256}/></label>
- <button disabled={busy||!url||key.length<32||!!pending||!!confirm} onClick={()=>run(async()=>{await workApi('/google/config','PUT',{url,key});setKey('');setResult(null);await refresh();setNotice('OAuth website configured. Choose a service to connect.');})}>Save OAuth website</button>
+ <button disabled={busy||!url||key.length<32||!!pending||!!confirm} onClick={()=>run(async()=>{await workApi('/google/config','PUT',{url,key});setKey('');setResult(null);await refresh();setNotice('Domain saved. Checking your OAuth website…');const checked=await workApi('/google/check','POST');setNotice(checked.message);})}>Save & connect website</button><p>HTTPS and /index.php are added automatically. A folder URL such as connect.example.com/oauth is supported.</p>{data?.callback_url&&<p>Google authorized redirect URI: <code style={{overflowWrap:'anywhere'}}>{data.callback_url}</code></p>}{data?.configured&&<button disabled={busy} onClick={()=>run(async()=>{const checked=await workApi('/google/check','POST');setNotice(checked.message)})}>Test website connection</button>}
  <a href="https://github.com/nadeemmhdm/Nila-Personal-Assistant/blob/main/docs/GOOGLE_CONNECT.md" target="_blank" rel="noreferrer">PHP deployment & Google Cloud setup <ExternalLink size={14}/></a></details>
  <div className="google-services">{data?.services.map(s=><button key={s.id} className={selected===s.id?'selected':''} disabled={busy||!!pending||!!confirm} onClick={()=>choose(s.id)}><strong>{s.name}</strong><small>{s.connected?'Connected':'Not connected'}</small></button>)}</div>
  {service&&<section><h3>{service.name}</h3><p>{service.description} · Read-only</p>{service.connected&&<p><ShieldCheck size={16}/> {service.email}</p>}

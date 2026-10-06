@@ -37,11 +37,33 @@ def put(store, name, value):
             db.execute('INSERT OR REPLACE INTO google_private VALUES (?,?)', (name, store.seal(json.dumps(value))))
 
 
-def configure(store, url, key):
-    url = url.strip().rstrip('/')
-    parsed = urlsplit(url)
+def normalize_broker_url(value):
+    value = value.strip()
+    if not value or len(value) > 1000 or any(c.isspace() for c in value) or '\\' in value:
+        raise ValueError('Enter your trusted OAuth website domain or HTTPS URL.')
+    if '://' not in value:
+        value = 'https://' + value
+    parsed = urlsplit(value)
     if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
-        raise ValueError('Use the trusted HTTPS broker URL, ending in /index.php. No query or credentials in the URL.')
+        raise ValueError('Use an HTTPS domain without a query, fragment or embedded credentials.')
+    try:
+        port = parsed.port
+        hostname = parsed.hostname.encode('idna').decode('ascii').lower()
+    except (ValueError, UnicodeError):
+        raise ValueError('Enter a valid HTTPS domain.') from None
+    if not re.fullmatch(r'[a-z0-9.-]+', hostname) or '..' in hostname or hostname.startswith('.') or hostname.endswith('.'):
+        raise ValueError('Enter a valid website hostname.')
+    authority = hostname + (':' + str(port) if port and port != 443 else '')
+    path = parsed.path.rstrip('/')
+    if not path.endswith('.php'):
+        path += '/index.php'
+    if '%' in path or any(segment in {'.', '..'} for segment in path.split('/')):
+        raise ValueError('Use a direct path to your PHP endpoint.')
+    return 'https://' + authority + path
+
+
+def configure(store, url, key):
+    url = normalize_broker_url(url)
     if len(key) < 32 or len(key) > 256 or any(c.isspace() for c in key):
         raise ValueError('Enter the private deployment pairing key (32–256 characters).')
     current = get(store, 'config')
@@ -54,7 +76,7 @@ def configure(store, url, key):
 
 def status(store):
     config = get(store, 'config')
-    return {'configured': bool(config), 'url': config['url'] if config else '', 'services': [
+    return {'configured': bool(config), 'url': config['url'] if config else '', 'callback_url': config['url'] + '?action=callback' if config else '', 'services': [
         {'id': key, 'name': meta[0], 'description': meta[2], 'scope': PREFIX + meta[1],
          'connected': bool(get(store, 'token:' + key)), 'email': (get(store, 'token:' + key) or {}).get('email', '')}
         for key, meta in SERVICES.items()]}
@@ -73,6 +95,16 @@ async def broker(store, action, body):
             return response.json()
         except (httpx.HTTPError, json.JSONDecodeError):
             raise ValueError('OAuth broker is unavailable. Check its HTTPS URL and server configuration.') from None
+
+
+async def check_connection(store):
+    result = await broker(store, 'health', {})
+    expected = get(store, 'config')['url'] + '?action=callback'
+    if result.get('protocol') != 'nila-google-oauth' or result.get('version') != 1:
+        raise ValueError('This website is not the compatible Nila OAuth ZIP. Upload the latest PHP package.')
+    if result.get('redirect_uri') != expected:
+        raise ValueError('Website domain mismatch. Set NILA_BROKER_URL on your PHP host to match the saved endpoint, and register its callback in Google Cloud.')
+    return {'message': 'OAuth website connected. Choose a service and sign in with Google.', 'callback_url': expected}
 
 
 def service_name(service):
@@ -267,6 +299,8 @@ def register(app, store):
     async def google_config(body: Config):
         try: return configure(store, body.url, body.key)
         except ValueError as e: raise HTTPException(400, str(e)) from None
+    @app.post('/api/google/check')
+    async def google_check(): return await guarded(check_connection, store)
     @app.post('/api/google/{service}/connect')
     async def google_connect(service: str): return await guarded(connect, store, service)
     @app.post('/api/google/{service}/poll')

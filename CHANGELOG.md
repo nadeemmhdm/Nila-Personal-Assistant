@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1
+
+- Domain-based OAuth endpoint setup and authenticated connection check in Web/CLI.
+- Separate private PHP website ZIP; remove PHP server source/tests from the current repository.
+- Build landing artifacts even before Pages is enabled; show actionable setup status and conditionally deploy.
+
+
 ## 0.8.0 — A Little More Personal
 
 - Bundled landing/About page, searchable error help, full guides, release notebook and fun origin story.

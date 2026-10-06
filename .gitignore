@@ -25,3 +25,8 @@ web/public/about/
 *.sqlite
 *.sqlite-*
 oauth-broker/.env*
+
+# PHP OAuth website is delivered privately as a separate ZIP.
+oauth-broker/
+nila-php-oauth*/
+*.zip

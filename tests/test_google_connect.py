@@ -128,3 +128,31 @@ def test_disconnect_during_poll_cannot_add_confirmation(tmp_path,monkeypatch):
     monkeypatch.setattr(g,'broker',broker)
     with pytest.raises(ValueError,match='cancelled'):asyncio.run(g.poll(store,'gmail'))
     assert g.get(store,'confirm:gmail') is None
+
+
+@pytest.mark.parametrize('value,expected', [
+    ('connect.example.com','https://connect.example.com/index.php'),
+    ('https://connect.example.com/','https://connect.example.com/index.php'),
+    ('connect.example.com/oauth','https://connect.example.com/oauth/index.php'),
+    ('https://connect.example.com/custom.php','https://connect.example.com/custom.php'),
+    ('CONNECT.EXAMPLE.COM:443','https://connect.example.com/index.php'),
+])
+def test_domain_normalization(value,expected):
+    assert g.normalize_broker_url(value)==expected
+
+@pytest.mark.parametrize('value',['http://example.com','https://user:pass@example.com','https://example.com/?key=secret','https://example.com/#fragment','https://example.com:bad','https://example.com/../other','https://example.com/%2e%2e/other','https://example.com\\@evil.com','bad domain',''])
+def test_reject_unsafe_domains(value):
+    with pytest.raises(ValueError):g.normalize_broker_url(value)
+
+
+def test_saved_domain_health_and_callback_match(tmp_path,monkeypatch):
+    store=Store(tmp_path);g.configure(store,'connect.example.test','K'*43)
+    assert g.status(store)['callback_url']=='https://connect.example.test/index.php?action=callback'
+    async def broker(store,action,body):
+        assert action=='health' and body=={}
+        return {'protocol':'nila-google-oauth','version':1,'redirect_uri':'https://connect.example.test/index.php?action=callback'}
+    monkeypatch.setattr(g,'broker',broker)
+    assert 'connected' in asyncio.run(g.check_connection(store))['message']
+    async def mismatch(*args):return {'protocol':'nila-google-oauth','version':1,'redirect_uri':'https://wrong.test/index.php?action=callback'}
+    monkeypatch.setattr(g,'broker',mismatch)
+    with pytest.raises(ValueError,match='mismatch'):asyncio.run(g.check_connection(store))
