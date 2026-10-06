@@ -40,3 +40,7 @@ Linux CI passed 119 tests, including both PHP router integration tests, and buil
 - TypeScript/production Web build passed. Chromium exercised domain setup, connection confirmation, preview, mobile layout and actual encrypted local document import using simulated Google responses.
 - The separate PHP ZIP passed syntax checks and 6 real PHP router tests under PHP 8.3, covering both environment and private-file configuration. Its PHP source/tests are no longer in the repository.
 - The previous Pages failure was a 404 from configure-pages because the repository had no Pages site. The updated workflow builds an artifact and clearly reports that deployment needs setup when Pages is disabled. Public deployment requires repository administration; a successful build with skipped deployment does not mean the site is online.
+
+## 0.8.2 validation
+
+Local suite: 155 passed. New tests cover English/Manglish/Malayalam routing, ordinary-question exclusion, missing IDs, read-only limits, negative requests, direct Google data in local model context, token exclusion, disabled public search/memory extraction, same-chat source follow-up, blocked channels and YouTube metadata endpoints. Production Web build passed. Google provider responses are mocked; live OAuth account reads still require credentials and user deployment.

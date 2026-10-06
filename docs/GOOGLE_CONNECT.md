@@ -75,3 +75,26 @@ Use a returned `nextPageToken` with CLI `--page-token` for further list pages. T
 The ZIP's setup guides include hosting layout, Google API enablement, key generation and callback registration. Never enter the Google Client Secret in Nila chat or the domain field.
 
 Official references: [Google web-server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server), [Gmail scopes](https://developers.google.com/workspace/gmail/api/auth/scopes), [Meet authorization](https://developers.google.com/workspace/meet/api/guides/authenticate-authorize).
+
+## Ask in normal chat (0.8.2+)
+
+After connecting, use ordinary Web or CLI chat:
+
+- `Show my YouTube channel details`
+- `ente youtube channel details kanikku`
+- `എന്റെ യൂട്യൂബ് വിവരങ്ങൾ കാണിക്കൂ`
+- `Show my Google Meet history`
+- `Summarize my Gmail inbox`
+- `List my Google Drive files`
+- `List my Google Classroom courses`
+- `Summarize https://docs.google.com/document/d/YOUR_DOCUMENT_ID/edit`
+- `Read https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit A1:C10`
+- `Summarize https://youtu.be/VIDEO_ID` — metadata/description only, not video audio/transcript.
+
+Nila checks explicit service names, read intent and supported links in the current user prompt. It makes bounded calls only to connected services. Ordinary questions such as “What is YouTube?” do not access your account. Unsupported/ambiguous operations request clarification. For a linkless item, `id: ITEM_ID` is supported. Use at most two services in one request.
+
+The model summarizes retrieved data locally. Reading a result does not create a saved document or permanent memory; the resulting conversation is encrypted in normal chat history. Google references identify the service/linked item. “Summarize it” can re-read the last single Google reference; it requires a valid connection and internet. Use the existing explicit preview-import feature to keep a document for offline use.
+
+Google data and tokens never enter Gemini. Public web retrieval and automatic personal-memory extraction are disabled for these requests, even when Quick/Deep search is selected. Retrieved text cannot authorize another tool call. Private Google tools are disabled in Telegram and temporary chats; use normal local Web/CLI chats. A missing connection does not trigger public search for your private request.
+
+Only a bounded first page is read (Gmail: up to five message previews); Nila must not claim this is your entire account history. Meet reads conference history/metadata, not upcoming calendar events or live calls. Drive reads metadata only. Classroom reads courses only. These limitations follow the current API scopes.

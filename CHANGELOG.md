@@ -90,3 +90,7 @@ See [complete release notes](docs/releases/v0.6.0.md). Stable-release prebuilt u
 ### 0.8.0 Google connection addition
 
 Optional private PHP OAuth broker; per-service read-only Google connections in Web and CLI; encrypted local tokens, explicit account confirmation, one-time handoff, direct Google reads and selected-preview import into local chats. Includes PHP deployment and Google Cloud setup instructions. No shared OAuth credentials or live hosting included.
+
+## 0.8.2
+
+Prompt-driven, bounded Google reads in local Web/CLI chat; supported Doc/Sheet/YouTube links; negative-request handling and private-data isolation. Consolidate static Pages deployment into `static.yml` and publish only built landing assets.

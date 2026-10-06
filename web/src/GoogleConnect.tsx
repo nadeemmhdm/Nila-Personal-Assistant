@@ -20,7 +20,7 @@ export function GoogleConnect({openChat}:{openChat:(id:string)=>void}){
  const rows=result?.files||result?.messages||result?.courses||result?.items||result?.conferenceRecords||[];
  const preview=result?.readable_text||JSON.stringify(result,null,2);
  return <div className="panel google-connect"><span className="eyebrow">YOUR ACCOUNTS · YOUR CHOICE</span><h2>Google connections</h2>
- <p>Connect through your own PHP OAuth website. Google data is read on this laptop. Gemini cannot access these connections, tokens or imported files.</p>
+ <p>Connect through your own PHP OAuth website, then ask in chat: “Show my YouTube channel”, “Show my Google Meet history”, or “Summarize this Google Doc” with its link. Google data is read on this laptop. Gemini cannot access these connections, tokens or imported files.</p>
  {error&&<p className="inline-error" role="alert">{error}</p>}{notice&&<p className="section-notice" role="status">{notice}</p>}
  <details open={!data?.configured}><summary>OAuth website setup</summary><p>Use a broker that you own or trust: its operator can process authorization tokens. The Google Client Secret belongs on the PHP server, never in this form.</p>
  <label>OAuth website domain<input placeholder="connect.example.com" value={url} onChange={e=>setUrl(e.target.value)} maxLength={1000}/></label>

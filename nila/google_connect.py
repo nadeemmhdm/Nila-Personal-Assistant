@@ -198,7 +198,8 @@ async def access_token(store, service, force=False):
 
 def endpoint(service, item='', cell_range='A1:Z100', page_token=''):
     service_name(service)
-    if item and not re.fullmatch(r'[A-Za-z0-9_-]{1,180}', item):
+    item_pattern = r'(?:(?:video|playlist):)?[A-Za-z0-9_-]{1,180}' if service == 'youtube' else r'[A-Za-z0-9_-]{1,180}'
+    if item and not re.fullmatch(item_pattern, item):
         raise ValueError('Enter the item ID, not its full URL.')
     params = {}
     if service == 'gmail':
@@ -223,9 +224,11 @@ def endpoint(service, item='', cell_range='A1:Z100', page_token=''):
         url = 'https://classroom.googleapis.com/v1/courses' + ('/' + item if item else '')
         params = {} if item else {'pageSize': 20}
     elif service == 'youtube':
-        url = 'https://www.googleapis.com/youtube/v3/' + ('playlists' if item == 'playlists' else 'channels')
-        params = {'part': 'snippet,contentDetails', 'maxResults': 20}
-        params.update({'id': item} if item and item != 'playlists' else {'mine': 'true'})
+        resource = 'videos' if item.startswith('video:') else 'playlists' if item == 'playlists' or item.startswith('playlist:') else 'channels'
+        url = 'https://www.googleapis.com/youtube/v3/' + resource
+        params = {'part': 'snippet,contentDetails' + (',statistics' if resource in {'channels','videos'} else '')}
+        if resource != 'videos': params['maxResults'] = 20
+        params.update({'id': item.split(':',1)[-1]} if item and item != 'playlists' else {'mine': 'true'})
     else:
         url = 'https://meet.googleapis.com/v2/conferenceRecords' + ('/' + item if item else '')
         params = {} if item else {'pageSize': 20}

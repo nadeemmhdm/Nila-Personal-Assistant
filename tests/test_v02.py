@@ -156,7 +156,7 @@ def test_version_and_update_typo_never_start_chat(monkeypatch,capsys):
     monkeypatch.setattr(cli,'Store',unexpected)
     monkeypatch.setattr(sys,'argv',['nila','version'])
     with pytest.raises(SystemExit) as e:cli.main()
-    assert e.value.code==0 and 'Nila 0.8.1' in capsys.readouterr().out
+    assert e.value.code==0 and 'Nila 0.8.2' in capsys.readouterr().out
     monkeypatch.setattr(cli,'Store',lambda:object())
     monkeypatch.setattr(updater,'apply_update',lambda:{'status':'current'})
     monkeypatch.setattr(sys,'argv',['nila','upadte'])

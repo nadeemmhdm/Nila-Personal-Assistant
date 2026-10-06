@@ -232,3 +232,9 @@ nila google status
 ```
 
 The PHP website source is distributed separately, not in the current repository. Its ZIP includes `START_HERE_MALAYALAM.md`, full OAuth setup and hosting instructions. Existing historical releases are unchanged.
+
+### Ask connected Google services in chat
+
+With a service connected, simply ask **“Show my YouTube channel”**, **“Show my Google Meet history”**, or paste a Google Doc/Sheet URL and ask for a summary. English, common Manglish and Malayalam read requests are supported. Missing links/connections prompt for setup; requests remain read-only. YouTube video links provide metadata, not a transcript. Google account reads work in normal local Web/CLI chats and do not send content to Gemini or public search. See [examples and limits](docs/GOOGLE_CONNECT.md#ask-in-normal-chat-082).
+
+Pages deployment now uses only `.github/workflows/static.yml`; it builds and uploads `web/public/about`, not the repository root. Do not add a second stock Pages workflow that uploads `.`.

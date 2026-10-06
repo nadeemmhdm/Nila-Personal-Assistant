@@ -157,7 +157,7 @@ class Bridge:
                 with suppress(TelegramError):await call(c['token'],'deleteMessage',{'chat_id':c['chat_id'],'message_id':indicator['message_id']})
                 indicator=None
         try:
-            async for part in reply(self.store,cid,text,learn_memory=c.get('share_memory',False),personal_context=c.get('share_memory',False),search_mode=c.get('search_mode','off'),thinking_level=c.get('thinking_level','medium'),progress=progress):
+            async for part in reply(self.store,cid,text,learn_memory=c.get('share_memory',False),personal_context=c.get('share_memory',False),search_mode=c.get('search_mode','off'),thinking_level=c.get('thinking_level','medium'),progress=progress,allow_google=False):
                 if not answer:
                     await stop_animation()
                 answer+=part

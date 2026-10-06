@@ -81,3 +81,9 @@ Persistent tokens are encrypted with Nila's local vault in a separate table, exc
 The PHP server operator is trusted because it handles tokens during authorization and refresh. Host it under HTTPS, outside public repositories, without callback-query/body/header logging or analytics. Keep the SQLite file and environment secrets outside the public directory. Pending sessions expire after ten minutes and are purged on the next request; schedule cleanup for idle deployments. Protect the endpoint with host-level rate limits. Do not distribute the private pairing key publicly.
 
 Disconnect removes local credentials; revoke the app in Google account settings to invalidate its Google grant. Disconnect does not delete imported documents or chats. A revoked Google grant can affect all service connections for that application. See [deployment and privacy boundaries](docs/GOOGLE_CONNECT.md).
+
+## Prompt-driven Google reads (0.8.2)
+
+The local chat router examines only the user's current prompt and previously recorded Google source identifiers for limited follow-ups. Provider text, memory and model output never create a tool plan. Calls are bounded and read-only; destinations remain fixed Google API endpoints. Explicit negative requests and unsupported writes block reads. Disconnected services return setup guidance without falling back to public search. Private requests skip automatic memory extraction and never call Gemini. Google credentials remain outside the model context.
+
+Normal chat history retains the generated answer encrypted. Raw results are not automatically archived as documents. Telegram and temporary chats cannot use private Google tools. The Telegram memory-sharing setting does not authorize Google data access.
