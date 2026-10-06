@@ -7,6 +7,8 @@ from nila.conversation import IDENTITY
 def test_mentions_are_bounded_and_read_intent_required():
     assert google_chat.plan('@Gmail read my last email')[0]['service']=='gmail'
     assert google_chat.plan('@Docs')[0]['error']
+    assert google_chat.plan('@Drive read my files')[0]['service']=='drive'
+    assert google_chat.plan('@Meet read my recent meetings')[0]['service']=='meet'
     assert google_chat.plan('What is YouTube?')==[]
     assert google_chat.plan("Don't read @Gmail")[0]['error']
 

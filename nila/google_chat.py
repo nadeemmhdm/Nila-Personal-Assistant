@@ -42,8 +42,8 @@ def plan(prompt, previous=()):
     lower = prompt.lower()
     words = re.sub(r'https?://\S+', '', lower)
     mentions=re.findall(r'@([a-z]+)\b',words)
-    invalid=[x for x in mentions if x not in google.SERVICES]
     services = [key for key, pattern in ALIASES.items() if re.search(pattern, words)]
+    services=list(dict.fromkeys(services+[x for x in mentions if x in google.SERVICES]))
     targets = {}
     for raw in re.findall(r'https?://[^\s<>"\)]+', prompt):
         parsed = urlsplit(raw.rstrip('.,;'))
