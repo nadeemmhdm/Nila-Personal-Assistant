@@ -21,3 +21,11 @@ Validated in Linux on 2026-10-05. Simulated providers are explicitly identified 
 | Live search reliability | Provider/network dependent; prior live checks returned one result but later requests timed out or returned none |
 
 The Windows MAX_PATH repair keeps source and virtual-environment paths short rather than requiring a registry change. Linux packaging does not establish Windows installation success. Mocked Gemini reviews do not establish factual accuracy, free quota, billing behavior or real model access. Telegram tests did not send messages to a real account. No model-weight fine-tuning is implemented.
+
+## 0.8.0 validation
+
+- Local Python suite: 117 passed; 2 PHP integration tests skipped because this execution environment has no PHP runtime. Linux CI installs PHP with cURL, PDO SQLite and Sodium and runs those tests.
+- Production Web build and TypeScript checks passed, including the Google connections panel.
+- Google tests cover encrypted credentials, masked status, account confirmation, granted-scope rejection, expiration, refresh/retry, disconnect during refresh, fixed read-only endpoints, cross-origin rejection and explicit encrypted import.
+- Earlier Chromium integration checks exercised file + text/file-only requests, model download/load, browser pack installation and English locale fallback, read-aloud toggling, logo serving, mobile layout and About documentation. Browser speech and Ollama were simulated.
+- Real Google OAuth sign-in, production PHP hosting, Google service entitlements, native Windows audio and real Ollama answer quality require deployment/hardware validation; they are not established by mocked tests.

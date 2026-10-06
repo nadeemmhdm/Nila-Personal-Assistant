@@ -8,14 +8,15 @@ from nila.websearch import needs_search
 from nila.knowledge_cache import remember_web,recall_web
 from test_app import mock_ollama
 
-def test_stable_questions_skip_search_and_developer_is_deterministic(tmp_path,monkeypatch):
-    mock_ollama(monkeypatch);s=Store(tmp_path);s.save_settings({'auto_memory':False})
+def test_stable_questions_skip_search_and_developer_uses_identity(tmp_path,monkeypatch):
+    seen=mock_ollama(monkeypatch);s=Store(tmp_path);s.save_settings({'auto_memory':False})
     from nila import websearch
     async def search(q,mode):assert mode=='off';return []
     monkeypatch.setattr(websearch,'search',search)
     async def run(prompt):return ''.join([p async for p in engine.reply(s,s.create_chat()['id'],prompt,search_mode='deep')])
     assert asyncio.run(run('Explain Python dictionaries'))
-    assert 'github.com/nadeemmhdm' in asyncio.run(run('developer details'))
+    asyncio.run(run('developer details'))
+    assert 'github.com/nadeemmhdm' in str(seen[-1]['messages'])
     assert needs_search('What is the latest weather today?')
     assert not needs_search('What is a Python dictionary?')
 

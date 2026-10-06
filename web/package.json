@@ -1,11 +1,12 @@
 {
   "name": "nila-personal-assistant-web",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "tsc --noEmit && vite build"
+    "build": "tsc --noEmit && vite build",
+    "prebuild": "node ../scripts/build_landing.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

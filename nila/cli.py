@@ -163,16 +163,18 @@ async def interactive(store,cid):
             if not latest: print('No prompt to edit yet.'); continue
             print('This replaces the last prompt and its answer.')
             prompt=input('New prompt: ').strip();edit_id=latest['id']
-        if prompt == "/model":
+        if prompt == '/model' or prompt.startswith('/model '):
             try:
-                available=await models()
-                for index,m in enumerate(available,1):print(f"{index}. {m['name']}")
-                choice=input('Model number or name: ').strip()
-                name=available[int(choice)-1]['name'] if choice.isdigit() and 1<=int(choice)<=len(available) else choice
-                from .server import Settings
-                s=store.save_settings(Settings(**(store.settings()|{'model':name})).model_dump())
-                print('Using',s['model'])
-            except (NilaError,ValueError) as exc:print(exc)
+                from .model_manager import select,selection
+                name=prompt[6:].strip()
+                if not name:
+                    current=selection(store);print('Current:',current['label'],current['model'])
+                    print('Choose fast, medium, current, or an Ollama model name. Missing models download once.')
+                    name=input('Model (Enter to keep current): ').strip()
+                if name:
+                    selected=await select(store,name,progress=lambda text:print(text,flush=True))
+                    print('Using',selected['label'],selected['model'])
+            except (NilaError,ValueError,RuntimeError) as exc:print(exc)
             continue
         if store.ephemeral and prompt=='/learn':print('Learning Lab is unavailable inside temporary chats.');continue
         if prompt == "/learn":
@@ -309,7 +311,7 @@ def main():
         elif args.command == "model":
             from .model_manager import select,selection
             if args.action=='use' and not args.name:raise ValueError('Use: nila model use fast|medium|current|MODEL_NAME')
-            active=asyncio.run(select(store,args.name)) if args.action=='use' else selection(store)
+            active=asyncio.run(select(store,args.name,progress=lambda text:print(text,flush=True))) if args.action=='use' else selection(store)
             print(f"Current model: {active['label']}\nModel: {active['model']}")
         elif args.command == "settings":
             from .server import Settings

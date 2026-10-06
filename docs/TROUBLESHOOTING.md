@@ -89,8 +89,16 @@ Let the active update finish. `nila settings --auto-update off` prevents future 
 
 Use `nila --version` on older versions. New builds also accept `nila version`. Earlier builds interpreted `version` and the misspelling `updatw` as chat prompts, which could start an automatic update; an Ollama connection error from those commands was not a version-check failure.
 
-## Greeting returns profile details or unrelated code
+## Greetings and the logo
 
-Update to the latest main build. Standalone greetings (Hi/Hello/Hey, Malayalam greetings, optionally addressed to Nila) receive a short local greeting using the saved user name; no model or search request is made. Greetings containing a real question still use the selected model. Developer attribution is included in ordinary chat instructions only when asked. Personal background must not be represented as the assistant's work or experiences.
+From v0.8.0, greetings use the selected local model rather than a fixed response template. Nila passes the actual greeting, omits unrelated history and requests a reply matching its language and time-of-day wording. Generation therefore requires Ollama and a local model.
 
-If an older conversation already contains unrelated generated content, use `/new` in CLI or New conversation in Web before asking a substantive question. This keeps the old chat in history while starting without its misleading replies. General answer relevance still depends on the selected model; this change is not model-weight training. Greeting templates currently cover English and Malayalam.
+If the logo is broken, update, stop the old Web process and restart `nila web`, then hard-refresh the browser. v0.8.0 explicitly serves `/nila-logo.png`; the binary is checked for image and About-page delivery.
+
+## Microphone language packs
+
+Click Microphone to open the local voice panel. English locales unsupported by the browser are retried as `en-US`. Supported but missing packs are installed before listening. Choose another supported language or use **Use Windows microphone**, which requires an installed Windows speech recognition pack and microphone permission. Browser support alone does not guarantee Malayalam support. No cloud speech fallback is enabled.
+
+Read aloud uses installed local voices matching the answer language. The same button turns into Stop. If a voice is missing, install it in your operating-system language settings.
+
+References: [MDN on-device speech recognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition/processLocally), [language-pack installation](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition/install_static).

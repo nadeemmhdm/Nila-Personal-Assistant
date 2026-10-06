@@ -1,9 +1,10 @@
+import {ChoiceMenu} from "./ChoiceMenu";
 import {ModelSelector} from "./ModelSelector";
 import {MemoryOverview} from "./LocalTools";
 import React, { useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { Workspace, ChatWorkspace } from "./Workspace";
-import { VoiceInput, speak } from "./Voice";
+import { VoiceInput, ReadAloud } from "./Voice";
 import { RichText } from "./RichText";
 import {
   FileText,
@@ -72,6 +73,7 @@ type Settings = {
   tone: string;
 };
 type Message = {
+  attachments?: {id:string;name:string}[];
   id: number;
   role: string;
   content: string;
@@ -344,7 +346,7 @@ function App() {
           ...(editMessageId
             ? (active.messages || []).filter((m) => m.id < editMessageId)
             : active.messages || []),
-          { id: -1, role: "user", content: text, status: "complete" },
+          { id: -1, role: "user", content: text, status: "complete", attachments:attachmentNames },
         ],
       });
       const r = await fetch("/api/chats/" + active.id + "/reply", {
@@ -649,6 +651,7 @@ function App() {
         </div>
         </>}
         <div className="sidebar-bottom">
+          <a className="nav-item" href="/about/" target="_blank" rel="noreferrer"><Globe size={18}/> About Nila & docs</a>
           <button
             className={
               page === "settings" ? "settings-link selected" : "settings-link"
@@ -704,7 +707,7 @@ function App() {
                 : "Make yourself at home"}
             </span>
           </div>
-          <ModelSelector disabled={busy||uploading} onError={setError}/>
+          <ModelSelector disabled={busy||uploading} onError={setError} onStatus={setNotice}/>
         </header>
         {error && (
           <div role="alert" className="error-banner">
@@ -829,6 +832,7 @@ function App() {
                             <small>Interrupted</small>
                           )}
                         </div>
+                        <div className="sent-files">{m.role==='user'&&m.attachments?.map(file=><span key={file.id}><FileText size={14}/>{file.name}</span>)}</div>
                         <div className={"markdown"+(regenerating===m.id?" streaming":"")}>
                           {regenerating===m.id&&!replyText?<div className="responding" role="status">{thinkingLabel}<span className="dots"><i/><i/><i/></span></div>:<RichText
                             text={
@@ -867,7 +871,7 @@ function App() {
                         </div>
                         {m.role==='assistant'&&<div className="response-tools">
                           <button className="icon" aria-label="Regenerate response" title="Regenerate response" disabled={busy} onClick={()=>{setRegenerateBox(m.id);setRegenerateText('')}}><RefreshCw size={15}/></button>
-                          <button data-source-region aria-expanded={sources?.id===m.id} disabled={busy} onClick={()=>toggleSources(m.id)}><Globe size={14}/>Sources</button><button onClick={()=>{try{speak(m.content)}catch(e){fail(e)}}}>Read aloud</button>
+                          <button data-source-region aria-expanded={sources?.id===m.id} disabled={busy} onClick={()=>toggleSources(m.id)}><Globe size={14}/>Sources</button><ReadAloud id={String(m.id)} text={m.content} onError={setError}/>
                         </div>}
                         {regenerateBox===m.id&&<div className="edit-prompt"><label>What should change? (optional)<textarea aria-label="Regeneration instructions" maxLength={2000} value={regenerateText} onChange={e=>setRegenerateText(e.target.value)} placeholder="e.g. Correct the second example, or explain in simpler words"/></label><small>Only this answer is regenerated locally, in the same place. The original conversation is saved as a branch; later turns move there. If stopped or failed, your original stays. No new web query is sent.</small><div><button disabled={busy} onClick={()=>send('Regenerate this response',null,true,m.id,regenerateText)}>Regenerate answer</button><button onClick={()=>setRegenerateBox(null)}>Cancel</button></div></div>}
                         {sources?.id===m.id&&<div className="source-explanation" data-source-region><strong>Context supplied to this answer</strong><p>This shows supplied references, not proof of the model's reasoning or factual accuracy.</p>{sources.items.length?sources.items.map((source,i)=><div key={i}><b>{source.kind}</b> · {source.label}{source.page?` · page ${source.page}`:''}{source.url&&<a href={source.url} target="_blank" rel="noreferrer">Open source</a>}</div>):<p>No recorded references for this answer.</p>}<button onClick={()=>{sourceTicket.current++;setSources(null)}}>Close references</button></div>}
@@ -1000,9 +1004,9 @@ function App() {
                   <div className="composer-tools">
                     <button type="button" className="icon" aria-label="Attach file" disabled={busy||uploading} onClick={()=>fileInput.current?.click()}><Paperclip size={17}/></button>
                     <input ref={fileInput} type="file" hidden accept=".pdf,.txt,.md,.csv,.json,.py,.js,.ts,.html,.css" onChange={e=>{const f=e.target.files?.[0];if(f)void attachFile(f);e.target.value=''}}/>
-                    <VoiceInput disabled={busy||uploading} onText={text=>setInput(v=>(v+" "+text).trim())} onError={message=>setError(message)}/><label className="icon-select" title={"Web search: "+searchMode}><Globe size={17}/><select aria-label="Search mode" value={searchMode} disabled={busy} onChange={e=>setSearchMode(e.target.value)}><option value="off">Web off</option><option value="quick">Quick search</option><option value="deep">Deep search</option></select></label>
-                    <label className="icon-select" title={"Thinking: "+settings.thinking_level}><Brain size={17}/><select aria-label="Thinking level" value={settings.thinking_level} disabled={busy} onChange={async e=>{const thinking_level=e.target.value as Settings['thinking_level'];try{const s=await api<Settings>('/settings','PUT',{...await api<Settings>('/settings'),thinking_level});setSettings(s);setDraft(s)}catch(err){fail(err)}}}><option value="low">Think · Low</option><option value="medium">Think · Medium</option><option value="high">Think · High</option></select></label>
-                    <ModelSelector compact disabled={busy||uploading} onError={setError}/>
+                    <VoiceInput disabled={busy||uploading} onText={text=>setInput(v=>(v+" "+text).trim())} onError={message=>setError(message)}/><ChoiceMenu compact label="Search mode" icon={<Globe size={17}/>} value={searchMode} disabled={busy} onChange={setSearchMode} options={[{value:'off',label:'Off',detail:'Use local knowledge and attached files'},{value:'quick',label:'Quick search',detail:'Look up public sources for factual questions'},{value:'deep',label:'Deep search',detail:'Compare several public search queries'}]}/>
+                    <ChoiceMenu compact label="Thinking level" icon={<Brain size={17}/>} value={settings.thinking_level} disabled={busy} options={[{value:'low',label:'Low',detail:'Brief, direct answers'},{value:'medium',label:'Medium',detail:'Balanced effort and detail'},{value:'high',label:'High',detail:'More time for complex questions'}]} onChange={async value=>{try{const s=await api<Settings>('/settings','PUT',{thinking_level:value});setSettings(s);setDraft(s)}catch(err){fail(err)}}}/>
+                    <ModelSelector compact disabled={busy||uploading} onError={setError} onStatus={setNotice}/>
                   </div>
                   <div>
                     <kbd>Shift + Enter for a new line</kbd>

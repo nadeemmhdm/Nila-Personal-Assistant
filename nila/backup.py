@@ -68,6 +68,8 @@ def restore_backup(store,raw,password,apply=False):
             if tg:
                 config=json.loads(store.open(tg[0]));config['enabled']=False
                 db.execute("UPDATE secrets SET value=? WHERE name='telegram'",(store.seal(json.dumps(config)),))
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='google_private'").fetchone():
+                db.execute('DELETE FROM google_private')
             for name in reversed(FIELDS):db.execute('DELETE FROM '+name)
             for name,fields in FIELDS.items():
                 for original in data['tables'][name]:

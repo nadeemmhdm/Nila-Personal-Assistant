@@ -3,7 +3,7 @@ import json
 import re
 import httpx
 
-IDENTITY="""You are Nila, a friendly personal assistant. Answer the user's latest message directly. Use earlier turns only when they help interpret a follow-up. User profile and reference material describe the user, not you: never claim their projects, job or experiences as your own. Do not print internal context labels or dump profile data. Do not introduce unrelated topics or code. Be concise unless detail is requested. Do not volunteer backend model or developer details. Use clean Markdown and preserve meaningful numbers and code."""
+IDENTITY="""You are Nila, a friendly personal assistant. Answer the user's latest message directly. Use earlier turns only when they help interpret a follow-up. User profile and reference material describe the user, not you: never claim their projects, job or experiences as your own. Do not print internal context labels or dump profile data. Do not introduce unrelated topics or code. Be concise unless detail is requested. Do not volunteer backend model or developer details. Your chosen birthday is March 2, 2026. It is a commemorative birthday. Mention it when asked; do not bring it into unrelated answers. For greetings, reply naturally to the actual greeting and its time of day, in the user’s language. Do not analyze the greeting or invent prior conversations. Use clean Markdown and preserve meaningful numbers and code."""
 
 
 def developer_question(text):
@@ -17,16 +17,10 @@ def thinking_message():
     return random.choice(THINKING_MESSAGES)
 
 
-def greeting_reply(text,settings):
-    # Match the whole message, never a greeting prefix followed by a real question.
-    normalized=re.sub(r'[!.,?]+',' ',text.casefold()).strip()
-    normalized=' '.join(normalized.split())
-    if not re.fullmatch(r'(hi+|he+y+|hello+|hallo+|halo+|good morning|good evening|good afternoon|ഹായ്|ഹലോ|നമസ്കാരം)( nila| നില)?',normalized):return None
-    name=re.sub(r"[^\w .'-]",'',settings.get('user_name',''),flags=re.UNICODE).strip()[:60]
-    suffix=', '+name if name else ''
-    if settings.get('language')=='Malayalam' or re.search(r'[\u0d00-\u0d7f]',text):
-        return f'ഹായ്{suffix}! എന്താണ് സഹായം വേണ്ടത്?'
-    return f'Hi{suffix}! How can I help you today?'
+def is_greeting(text):
+    value=' '.join(re.sub(r'[!.,?]+',' ',text.casefold()).split())
+    return bool(re.fullmatch(r'(hi+|he+y+|hello+|hallo+|halo+|good m(?:orning|rning)|good evening|good afternoon|ഹായ്|ഹലോ|നമസ്കാരം)( nila| nil| നില| bro| buddy)?',value))
+
 
 def effort(level):
     return {'low':('Answer directly and briefly.',512,2048),'medium':('Check the question and give a clear answer with useful context.',1024,2048),'high':('Carefully check assumptions and potential mistakes before giving a thorough, structured answer. Show conclusions and useful explanations, not private reasoning traces.',2048,4096)}[level]
@@ -46,7 +40,7 @@ async def followups(store,cid):
     messages=store.chat(cid)['messages']
     if not messages or messages[-1]['role']!='assistant':return []
     prompt=next((m['content'] for m in reversed(messages[:-1]) if m['role']=='user'),'')
-    if not prompt or greeting_reply(prompt,store.settings()):return []
+    if not prompt or is_greeting(prompt):return []
     token=store.acquire()
     try:
         schema={'type':'object','properties':{'questions':{'type':'array','items':{'type':'string'},'maxItems':3}},'required':['questions']}
@@ -56,3 +50,16 @@ async def followups(store,cid):
         return [q.strip() for q in values if isinstance(q,str) and 5<=len(q.strip())<=160][:3]
     except (httpx.HTTPError,ValueError,KeyError,TypeError):return []
     finally:store.release(token)
+
+
+def local_today():
+    from datetime import datetime
+    return datetime.now().astimezone().date()
+
+def birthday_due(store,settings):
+    day=local_today()
+    return day.year if not store.ephemeral and day.year>=2026 and (day.month,day.day)==(3,2) and settings.get('birthday_announced_year')!=day.year else None
+
+
+def birthday_question(text):
+    return bool(re.search(r"\b(?:your|nila(?:'s)?|ninte)\s+(?:birthday|birth date|birthdate|date of birth)\b|when were you born|നിന്റെ ജന്മദിനം",text,re.I))

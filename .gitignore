@@ -19,3 +19,9 @@ worker.lock
 worker-status.json
 worker-status.pending
 *.log
+
+web/public/about/
+
+*.sqlite
+*.sqlite-*
+oauth-broker/.env*

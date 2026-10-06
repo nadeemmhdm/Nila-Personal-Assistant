@@ -2,7 +2,7 @@
 
 **A personal AI workspace for your browser, terminal and private Telegram chat.**
 
-Version **0.7.0** · Developed by [Nadeem](https://github.com/nadeemmhdm) · MIT license
+Version **0.8.0** · Developed by [Nadeem](https://github.com/nadeemmhdm) · MIT license
 
 Nila uses Ollama on your computer. New installs default to **Smart (`qwen3:4b`)**. Select **Fast (`qwen3:0.6b`)**, **Medium (`qwen3:1.7b`)**, or any installed compatible text model. Existing selections, including `llama3.2:1b`, are preserved. Personal conversations, memories and attached text stay local unless you deliberately use an online feature. No Ollama API key is needed for the local endpoint.
 
@@ -157,7 +157,7 @@ The server binds to loopback only. Do not publish it through a tunnel or expose 
 
 - Real model speed and Malayalam quality depend on your hardware and selected model. `llama3.2:1b` is a starting point, not a guarantee of advanced reasoning.
 - Nila does not run arbitrary shell commands or scheduled automations.
-- No voice, wake word, scanned-PDF OCR, arbitrary file manipulation or remote computer control.
+- No wake word, scanned-PDF OCR, arbitrary file manipulation or remote computer control. Local speech requires supported browser/Windows language packs.
 - Initial installs, updates, model downloads and Gemini Learning Lab require internet. Installed local models work offline when search and online integrations are disabled.
 - Automatic binary updating is implemented for the managed Windows installer. Linux/source installs require manual updates and rebuilds.
 - The Windows installer and DPAPI path require Windows validation; see the current [validation report](docs/VALIDATION.md).
@@ -174,9 +174,9 @@ The server binds to loopback only. Do not publish it through a tunnel or expose 
 
 Nila source code is licensed under the [MIT License](LICENSE), copyright 2026 Nadeem Muhammed. Ollama models, Gemini services and third-party dependencies retain their own licenses and terms.
 
-## New in 0.7.0
+## New in 0.8.0
 
-See [release notes](docs/releases/v0.7.0.md) for stable-release updates, Models and Skills dashboards, offline web-reference caching, Telegram modes, persistent attachments and local browser voice capabilities.
+See [release notes](docs/releases/v0.8.0.md) for stable-release updates, Models and Skills dashboards, offline web-reference caching, Telegram modes, persistent attachments and local browser voice capabilities.
 
 Use **Workspace → Models → Load & use** to switch local models. Import a Markdown skill through **Workspace → Skills → Add skill**. At most one skill is active; it provides instructions, not executable tools. **Workspace → Knowledge** manages dated saved web references.
 
@@ -184,7 +184,7 @@ Voice input is available only where the browser supports on-device recognition w
 
 ## Shared model profiles
 
-Use the header selector or Workspace → Models. Missing models show the exact `ollama pull` command; Nila never silently falls back to a different model. Profile mappings can be changed under Models → Configure profile model names.
+Use the header selector or Workspace → Models. Missing selections download and load before activation; installed models are reused. Failed activation retains the previous model. Nila never silently falls back to a different model. Profile mappings can be changed under Models → Configure profile model names.
 
 ```sh
 nila model
@@ -197,3 +197,36 @@ nila model use llama3.2:1b
 Telegram: `/model`, `/model fast`, `/model medium`, `/model current`. All interfaces share the same saved selection and apply it to subsequent requests without a restart. A running generation or Learning Lab session retains its original model.
 
 Memory shows counts for personal facts, pending suggestions, accepted Learning Lab lessons and saved web topics. Opening Memory also recovers web references from up to 200 older completed answers once. Saved knowledge is reusable offline when knowledge recall is enabled. Model-reviewed notes and retrieved snippets can be wrong or outdated; Nila does not train its model weights.
+
+## Nila's home and birthday
+
+Open **About Nila & docs** in the Web sidebar or visit `/about/` on your local Nila server. The responsive landing page includes an origin story (fiction for fun), model controls, setup, releases, privacy, complete guides and offline error-code search. Source: `landing/`; `npm run build` in `web/` generates the bundled site automatically.
+
+Nila's chosen birthday is **March 2, 2026**. Its identity prompt retains this date even when personal memory is disabled. On March 2 (laptop local date), a successful normal chat requests one birthday mention per year across Web/CLI/Telegram. No background greeting is sent when the app is closed.
+
+## Voice and model switching
+
+The microphone panel lets you select a language, install a supported browser speech pack and start local recognition. Unsupported English locales fall back to `en-US`. Windows users can explicitly choose **Use Windows microphone** with an installed Windows speech recognizer. Unsupported local languages remain unavailable; no cloud fallback is silently enabled. Read aloud toggles to Stop in the same response button.
+
+Model selection now checks installed models, downloads only if missing, loads the selection, then saves it. Use `nila model use fast`, `/model fast` in interactive CLI or Telegram, or the Web selector. Keep the selection window/process open until activation completes. Failed activation retains the previous selection.
+
+Files stay attached to a conversation until removed. Send files alone to summarize them, or include your question. Filenames appear on sent user messages. Attached-file requests prioritize local document context even with web mode selected; image vision and scanned-PDF OCR are not supported.
+
+### Public landing-page hosting
+
+The `Nila landing page` workflow publishes the same static About page to GitHub Pages. Enable **Settings → Pages → Source: GitHub Actions** once, then run the workflow (subsequent main pushes redeploy automatically). No user chat, memory, API credentials or local server is deployed. All assets use relative paths so the project URL works. The local `/about/` page does not depend on public hosting.
+
+## Connect Google services through a PHP website
+
+Open **Workspace → Google** to connect Gmail, Drive, Docs, Sheets, Classroom, YouTube or Meet individually. The included PHP OAuth broker handles sign-in; Nila reads Google data directly on your laptop. Preview selected content and use it in a local chat. Gemini cannot read these connections or imported documents. The initial integration is read-only.
+
+Deploy `oauth-broker/public/` to an HTTPS PHP 8.2+ host and register a Google Cloud **Web application** OAuth client. Configure the Google Client Secret on that server, then enter the broker URL and private pairing key in Nila. Your laptop does not need a public address. GitHub Pages cannot run this PHP endpoint.
+
+See [Google connections: deployment, permissions and commands](docs/GOOGLE_CONNECT.md), also bundled in **About Nila & docs**. Live Google access requires your own deployment and consent; this repository does not include an already connected Google application.
+
+```bash
+nila google setup
+nila google connect gmail
+nila google read gmail
+nila google status
+```

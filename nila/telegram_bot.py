@@ -99,10 +99,16 @@ class Bridge:
         if text.lower().split()[0]=='/model':
             from .model_manager import select,selection
             value=text.split(maxsplit=1)
+            indicator=None
             try:
-                selected=await select(self.store,value[1].strip()) if len(value)>1 else selection(self.store)
-                await self.send(c,'Current model: '+selected['label']+'\n/model fast · /model medium · /model current')
-            except (NilaError,ValueError,RuntimeError) as exc:await self.send(c,str(exc))
+                if len(value)>1:
+                    indicator=await call(c['token'],'sendMessage',{'chat_id':c['chat_id'],'text':'Checking local model… Missing models will download once; installed models will be reused.'})
+                    selected=await select(self.store,value[1].strip())
+                else:selected=selection(self.store)
+                message='Current model: '+selected['label']+' · '+selected['model']+'\n/model fast · /model medium · /model current'
+            except (NilaError,ValueError,RuntimeError) as exc:message=str(exc)
+            if indicator and indicator.get('message_id'):await call(c['token'],'editMessageText',{'chat_id':c['chat_id'],'message_id':indicator['message_id'],'text':message})
+            else:await self.send(c,message)
             return
         parts=text.lower().split()
         if parts[0] in {'/search','/think','/status'}:

@@ -103,7 +103,7 @@ def create_app(store=None):
         start_auto_update(store)
         try: yield
         finally:
-            pending=list(running.values())+list(app.state.followups.values())
+            pending=list(running.values())+list(app.state.followups.values())+list(getattr(app.state,'voice_tasks',{}).values())
             for task in pending:task.cancel()
             await asyncio.gather(*pending,return_exceptions=True)
             await lab.close()
@@ -121,6 +121,8 @@ def create_app(store=None):
     skill_routes(app,store)
     from .model_manager import register as model_routes
     model_routes(app,store)
+    from .google_connect import register as google_routes
+    google_routes(app,store)
     register(app,store,None)
     from .learning_api import register as register_learning
     lab=register_learning(app,store)
@@ -270,9 +272,16 @@ def create_app(store=None):
                 with suppress(asyncio.CancelledError): await task
         return StreamingResponse(events(),media_type="application/x-ndjson",headers={"Cache-Control":"no-store","X-Accel-Buffering":"no"})
 
+    from .voice import register as register_voice
+    register_voice(app)
     static = Path(__file__).parent / "static"
     if (static/"assets").exists():
         app.mount("/assets",StaticFiles(directory=static/"assets"),name="assets")
+    @app.get("/nila-logo.png",include_in_schema=False)
+    def logo():
+        if not (static/"nila-logo.png").is_file():raise HTTPException(404,"Logo missing; rebuild the Web UI")
+        return FileResponse(static/"nila-logo.png",media_type="image/png")
+    if (static/"about").is_dir():app.mount("/about",StaticFiles(directory=static/"about",html=True),name="about")
     @app.get("/")
     def index():
         if (static/"index.html").exists(): return FileResponse(static/"index.html")

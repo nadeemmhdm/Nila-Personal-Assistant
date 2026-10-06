@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0 — A Little More Personal
+
+- Bundled landing/About page, searchable error help, full guides, release notebook and fun origin story.
+- Birthday identity (March 2, 2026) and one annual in-chat reminder; model-generated greetings replace canned replies.
+- Fix logo HTTP delivery, attachment context with search enabled and sent-file names.
+- Local voice language recovery, Windows recognition fallback and response-level Play/Stop.
+- Descriptive composer selectors and shared check/download-if-missing/load model activation across Web, CLI and Telegram.
+
+
 ## 0.7.0 — Shared Models
 
 - Central Fast/Medium/Smart model profiles across Web, CLI and Telegram, configurable mappings and safe legacy selection migration.
@@ -70,3 +79,7 @@ See [complete release notes](docs/releases/v0.6.0.md). Stable-release prebuilt u
 ## 0.1.0 — 2026-10-04
 
 - Initial Ollama-powered Web UI and CLI, shared history, explicit memory, notes/tasks, streaming and binary build workflow.
+
+### 0.8.0 Google connection addition
+
+Optional private PHP OAuth broker; per-service read-only Google connections in Web and CLI; encrypted local tokens, explicit account confirmation, one-time handoff, direct Google reads and selected-preview import into local chats. Includes PHP deployment and Google Cloud setup instructions. No shared OAuth credentials or live hosting included.

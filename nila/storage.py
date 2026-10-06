@@ -12,7 +12,7 @@ from platformdirs import user_data_dir
 from .vault import Vault, PREFIX
 from .model_manager import DEFAULT_PROFILES,normalize
 
-DEFAULTS = {'assistant_name':'Nila','user_name':'','model':DEFAULT_PROFILES['current'],'model_profiles':DEFAULT_PROFILES,'model_mode':'current','language':'Auto','temperature':.7,'num_ctx':2048,'memory_enabled':True,'auto_memory':True,'auto_update':True,'description':'','position':'Other','completion_year':'','company':'','job_role':'','knowledge_enabled':True,'course':'','interests':'','tone':'Friendly','memory_review':True,'setup_complete':False,'thinking_level':'medium','goals':'','response_style':'Balanced'}
+DEFAULTS = {'birthday_announced_year':0,'assistant_name':'Nila','user_name':'','model':DEFAULT_PROFILES['current'],'model_profiles':DEFAULT_PROFILES,'model_mode':'current','language':'Auto','temperature':.7,'num_ctx':2048,'memory_enabled':True,'auto_memory':True,'auto_update':True,'description':'','position':'Other','completion_year':'','company':'','job_role':'','knowledge_enabled':True,'course':'','interests':'','tone':'Friendly','memory_review':True,'setup_complete':False,'thinking_level':'medium','goals':'','response_style':'Balanced'}
 
 class Store:
     def __init__(self,root=None,ephemeral=False):
@@ -105,10 +105,18 @@ class Store:
         with self.db() as db:
             row=db.execute('SELECT * FROM chats WHERE id=?',(cid,)).fetchone()
             if row is None: raise KeyError('Conversation not found')
-            return self.decode(row,['title'])|{'messages':[self.decode(r,['content']) for r in db.execute('SELECT messages.*,COALESCE(feedback.rating,0) AS rating FROM messages LEFT JOIN feedback ON feedback.message_id=messages.id WHERE chat_id=? ORDER BY messages.id',(cid,))]}
+            messages=[self.decode(r,['content']) for r in db.execute('SELECT messages.*,COALESCE(feedback.rating,0) AS rating FROM messages LEFT JOIN feedback ON feedback.message_id=messages.id WHERE chat_id=? ORDER BY messages.id',(cid,))]
+            for message in messages:
+                if message['role']=='user':
+                    refs=db.execute('SELECT content FROM answer_sources WHERE message_id=?',(message['id'],)).fetchone()
+                    message['attachments']=[{'id':x['id'],'name':x['label']} for x in json.loads(self.open(refs[0])) if x.get('kind')=='attachment'] if refs else []
+            return self.decode(row,['title'])|{'messages':messages}
     def add_message(self,cid,role,content,status='complete'):
         with self.db() as db:
             mid=db.execute('INSERT INTO messages(chat_id,role,content,status) VALUES (?,?,?,?)',(cid,role,self.seal(content),status)).lastrowid
+            if role=='user':
+                refs=[{'kind':'attachment','id':r['id'],'label':self.open(r['name'])} for r in db.execute('SELECT d.id,d.name FROM documents d JOIN chat_documents c ON c.document_id=d.id WHERE c.chat_id=?',(cid,))]
+                if refs:db.execute('INSERT OR REPLACE INTO answer_sources VALUES (?,?)',(mid,self.seal(json.dumps(refs))))
             db.execute('UPDATE chats SET updated=? WHERE id=?',(time.time(),cid))
             count=db.execute("SELECT COUNT(*) FROM messages WHERE chat_id=? AND role='user'",(cid,)).fetchone()[0]
             if role=='assistant' and status=='complete' and content.strip():

@@ -3,6 +3,11 @@ import asyncio,getpass,json,os
 from pathlib import Path
 
 def add_parsers(sub):
+    p=sub.add_parser('google',help='Connect read-only Google services through your PHP broker')
+    p.add_argument('action',choices=['setup','status','connect','read','disconnect'],nargs='?',default='status')
+    p.add_argument('service',nargs='?',choices=['gmail','drive','docs','sheets','classroom','youtube','meet'])
+    p.add_argument('--item',default='');p.add_argument('--range',dest='cell_range',default='A1:Z100')
+    p.add_argument('--page-token',default='')
     p=sub.add_parser("speak",help="Read text aloud with an installed Windows offline voice");p.add_argument("text")
     sub.add_parser("listen",help="Transcribe one utterance using installed Windows offline speech recognition")
     p=sub.add_parser('skills',help='List, import or select local Markdown skills');p.add_argument('action',nargs='?',default='list',choices=['list','add','use','off','remove']);p.add_argument('value',nargs='?')
@@ -23,13 +28,32 @@ def add_parsers(sub):
     p=sub.add_parser('feedback-list',help='Inspect, clear or reset local feedback');p.add_argument('--clear',type=int);p.add_argument('--reset',action='store_true')
 
 
-COMMANDS={'speak','listen','skills','telegram','setup','brief','mini','rollback','regenerate','branch','sources','backup','restore','inbox','projects','documents','feedback-list'}
+COMMANDS={'google','speak','listen','skills','telegram','setup','brief','mini','rollback','regenerate','branch','sources','backup','restore','inbox','projects','documents','feedback-list'}
 
 def execute(args,store):
     from . import workspace as ws
     def show(value):print(json.dumps(value,ensure_ascii=False,indent=2))
     c=args.command
-    if c in {'speak','listen'}:
+    if c=='google':
+        from . import google_connect as google
+        if args.action=='setup':
+            url=input('Your trusted HTTPS PHP broker URL: ').strip()
+            key=getpass.getpass('Private deployment pairing key (hidden): ')
+            show(google.configure(store,url,key))
+        elif args.action=='status':show(google.status(store))
+        elif args.action=='disconnect':show(google.disconnect(store,args.service))
+        elif args.action=='read':show(asyncio.run(google.read(store,args.service,args.item,args.cell_range,args.page_token)))
+        elif args.action=='connect':
+            import webbrowser,time
+            result=asyncio.run(google.connect(store,args.service));print('Open this login page: '+result['url']);webbrowser.open(result['url'])
+            try:
+                while True:
+                    time.sleep(3);result=asyncio.run(google.poll(store,args.service))
+                    if result['status']!='pending':break
+                if input('Connect '+result['email']+' to '+args.service+'? [y/N] ').lower()=='y':show(google.confirm(store,args.service))
+                else:google.disconnect(store,args.service)
+            except KeyboardInterrupt:google.disconnect(store,args.service);print('Connection cancelled.')
+    elif c in {'speak','listen'}:
         from .voice import run
         print('Listening locally for up to 30 seconds…' if c=='listen' else 'Speaking locally…',flush=True)
         print(run(c,getattr(args,'text','')))

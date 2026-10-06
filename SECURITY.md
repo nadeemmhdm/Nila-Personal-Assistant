@@ -71,3 +71,13 @@ Current feedback controls save only thumbs up/down. Legacy feedback reasons rema
 The Learning Lab local-model prompt is isolated from ordinary chat context, including retrieved feedback and web-search history. Its outbound review client accepts only a key and explicit study-session data, with no Store access. Extra session fields (including memory-inclusion flags) are rejected. Tests seed private profile, memory, notes, conversations and feedback and check both local-Lab and Gemini HTTP payloads. Content explicitly pasted into the study topic/description is still sent with the user's session consent.
 
 Custom Markdown skills are encrypted local instructions and cannot grant execution privileges. Telegram excludes them when personal context is disabled. Cached public evidence is dated, unverified and deletable. Neither feature is passed to Gemini Learning Lab. Voice input requires on-device browser recognition; no automatic cloud fallback is used.
+
+## Optional Google OAuth broker
+
+Google integration is opt-in and read-only. The private PHP deployment keeps the Google Client Secret server-side. OAuth state is random and bound to a secure HttpOnly browser cookie; token pickup requires a separate claim secret and private deployment key. Short-lived pending tokens are Sodium-encrypted and removed after a single claim. The user must confirm the verified account in local Nila before reads are enabled.
+
+Persistent tokens are encrypted with Nila's local vault in a separate table, excluded from normal settings, model context and portable workspace backups. Gmail/Drive/Docs/Sheets/Classroom/YouTube/Meet calls use fixed Google endpoints directly from the laptop with redirects disabled. No Google token, preview or document is forwarded to Gemini. Content is only imported to local documents when the user clicks **Use this preview in a local chat**.
+
+The PHP server operator is trusted because it handles tokens during authorization and refresh. Host it under HTTPS, outside public repositories, without callback-query/body/header logging or analytics. Keep the SQLite file and environment secrets outside the public directory. Pending sessions expire after ten minutes and are purged on the next request; schedule cleanup for idle deployments. Protect the endpoint with host-level rate limits. Do not distribute the private pairing key publicly.
+
+Disconnect removes local credentials; revoke the app in Google account settings to invalidate its Google grant. Disconnect does not delete imported documents or chats. A revoked Google grant can affect all service connections for that application. See [deployment and privacy boundaries](docs/GOOGLE_CONNECT.md).

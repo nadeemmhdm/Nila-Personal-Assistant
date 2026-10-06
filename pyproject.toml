@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nila-personal-assistant"
-version = "0.7.0"
+version = "0.8.0"
 description = "A local-first personal assistant with an animated web interface and a shared Ollama-powered CLI."
 requires-python = ">=3.11"
 license = "MIT"

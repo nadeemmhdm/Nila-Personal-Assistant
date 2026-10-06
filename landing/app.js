@@ -1,0 +1,7 @@
+const menu=document.querySelector('#menu'),nav=document.querySelector('nav');
+menu?.addEventListener('click',()=>{menu.setAttribute('aria-expanded',String(nav.classList.toggle('open')))});
+nav?.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{nav.classList.remove('open');menu.setAttribute('aria-expanded','false')}));
+const search=document.querySelector('#error-search'),cards=[...document.querySelectorAll('.error-card')];
+function filter(){const terms=search.value.toLowerCase().trim().split(/\s+/).filter(Boolean);let count=0;cards.forEach(card=>{card.hidden=!terms.every(t=>card.textContent.toLowerCase().includes(t));if(!card.hidden)count++});document.querySelector('#error-count').textContent=`${count} help ${count===1?'entry':'entries'}`;document.querySelector('#no-errors').hidden=count!==0}
+search?.addEventListener('input',filter);if(search)filter();
+document.querySelector('#copy-install')?.addEventListener('click',async()=>{const element=document.querySelector('#install-command'),status=document.querySelector('#copy-status');try{await navigator.clipboard.writeText(element.textContent);status.textContent='Copied. Paste into PowerShell.'}catch{const range=document.createRange();range.selectNodeContents(element);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);status.textContent='Copy the highlighted command manually.'}});

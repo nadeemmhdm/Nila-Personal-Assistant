@@ -9,31 +9,48 @@ def profiles(value=None):
     if set(data)!=set(DEFAULT_PROFILES) or any(not isinstance(v,str) or not re.fullmatch(r'[a-zA-Z0-9_.:/-]{1,120}',v) for v in data.values()):raise ValueError('Configure Fast, Medium and Current with valid Ollama model names')
     return data
 
+def canonical(name):
+    return name if ':' in name.rsplit('/',1)[-1] else name+':latest'
+
 def normalize(saved):
     data=dict(saved);mapping=profiles(data.get('model_profiles'));name=data.get('model',mapping['current'])
     mode=data.get('model_mode')
-    if mode not in mapping or mapping[mode]!=name:mode=next((k for k,v in mapping.items() if v==name),'custom')
+    if mode not in mapping or canonical(mapping[mode])!=canonical(name):mode=next((k for k,v in mapping.items() if canonical(v)==canonical(name)),'custom')
     data.update(model_profiles=mapping,model=name,model_mode=mode)
     return data
 
 def selection(store):
     settings=store.settings();return {'model':settings['model'],'mode':settings['model_mode'],'label':LABELS[settings['model_mode']],'profiles':[{'id':k,'label':LABELS[k],'model':v,'purpose':PURPOSES[k]} for k,v in settings['model_profiles'].items()]}
 
-async def select(store,value,warm=False):
+async def select(store,value,warm=True,install_missing=True,progress=None):
     from .engine import models,ollama_url,NilaError
     import httpx
     settings=store.settings();value=value.lower() if value.lower() in {'fast','medium','current','smart'} else value
     if value=='smart':value='current'
     name=settings['model_profiles'].get(value,value)
+    name=canonical(name)
     if not re.fullmatch(r'[a-zA-Z0-9_.:/-]{1,120}',name):raise ValueError('Invalid Ollama model name')
     token=store.acquire()
     try:
-        if name not in [m['name'] for m in await models()]:raise NilaError(f'NILA-002: The selected model is not installed in Ollama. Model: {name}. Install it with: ollama pull {name}')
+        if progress:progress('Checking installed models')
+        if name not in [m['name'] for m in await models()]:
+            if not install_missing:raise NilaError(f'NILA-002: Model missing. Run: ollama pull {name}')
+            from .extensions import pull_model
+            import time
+            def report(data):
+                with store.db() as db:db.execute('UPDATE lease SET expires=? WHERE token=?',(time.time()+720,token))
+                label='Downloading '+name+': '+str(data.get('status','working'))
+                if data.get('total'):label+=' '+str(round(100*data.get('completed',0)/data['total']))+'%'
+                if progress:progress(label)
+            await pull_model(name,report)
+            if name not in [m['name'] for m in await models()]:raise NilaError('NILA-002: Download ended but model is unavailable. Retry to resume.')
+        if progress:progress('Loading '+name)
         if warm:
             async with httpx.AsyncClient(timeout=180,trust_env=False) as c:
                 r=await c.post(ollama_url()+'/api/generate',json={'model':name,'prompt':'','stream':False,'keep_alive':'5m'});r.raise_for_status()
                 if r.json().get('error'):raise NilaError('Ollama could not load this model. Check available RAM.')
         store.save_settings({'model':name}|({'model_mode':value} if value in settings['model_profiles'] else {}));return selection(store)
+    except httpx.HTTPError as exc:raise NilaError('NILA-004: Model download/load failed. Check Ollama, internet for downloads, and available RAM. Your previous selection is retained.') from exc
     finally:store.release(token)
 
 def register(app,store):
@@ -46,6 +63,28 @@ def register(app,store):
         try:return await select(store,value)
         except (NilaError,ValueError) as exc:raise HTTPException(400,str(exc))
         except RuntimeError as exc:raise HTTPException(409,str(exc))
+
+    @app.post('/api/models/activate')
+    async def activate(value:str=Body(embed=True)):
+        import asyncio,json
+        from fastapi.responses import StreamingResponse
+        queue=asyncio.Queue()
+        async def run():
+            try:
+                selected=await select(store,value,progress=lambda text:queue.put_nowait({'progress':text}))
+                await queue.put({'selection':selected})
+            except (NilaError,ValueError,RuntimeError) as exc:await queue.put({'error':str(exc)})
+            finally:await queue.put({'done':True})
+        async def events():
+            task=asyncio.create_task(run())
+            try:
+                while True:
+                    event=await queue.get();yield json.dumps(event)+'\n'
+                    if event.get('done'):break
+            finally:
+                if not task.done():task.cancel()
+                await asyncio.gather(task,return_exceptions=True)
+        return StreamingResponse(events(),media_type='application/x-ndjson')
     @app.put('/api/models/profiles')
     def configure(value:dict[str,str]=Body()):
         mapping=profiles(value);old=store.settings();changes={'model_profiles':mapping}

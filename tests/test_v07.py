@@ -26,7 +26,7 @@ def test_legacy_custom_model_preserved_and_missing_selection_not_applied(tmp_pat
     assert mm.selection(store)['mode']=='custom'
     async def empty():return []
     monkeypatch.setattr(engine,'models',empty)
-    with pytest.raises(engine.NilaError,match='ollama pull qwen3:0.6b'):asyncio.run(mm.select(store,'fast'))
+    with pytest.raises(engine.NilaError,match='ollama pull qwen3:0.6b'):asyncio.run(mm.select(store,'fast',install_missing=False))
     assert store.settings()['model']=='llama3.2:1b'
     store.save_settings({'model_profiles':mm.DEFAULT_PROFILES|{'fast':'custom:1b'}})
     assert store.settings()['model_profiles']['fast']=='custom:1b'
@@ -56,6 +56,7 @@ def test_recover_old_web_evidence_once_and_forget(tmp_path):
 
 @pytest.mark.parametrize('mode',['fast','medium','current'])
 def test_telegram_one_indicator_replaced_and_shared_model(tmp_path,monkeypatch,mode):
+    mock_ollama(monkeypatch)
     store=Store(tmp_path);tg.save(store,'123456:abcdefghijklmnopqrstuvwxyzABCDEF','123',True);calls=[]
     async def call(token,method,payload):calls.append((method,payload));return {'message_id':88}
     async def available():return [{'name':v} for v in mm.DEFAULT_PROFILES.values()]
@@ -76,6 +77,7 @@ def test_telegram_one_indicator_replaced_and_shared_model(tmp_path,monkeypatch,m
 def test_cli_profiles_share_persistent_selection(tmp_path,monkeypatch,capsys,mode):
     import sys
     from nila import cli
+    mock_ollama(monkeypatch)
     store=Store(tmp_path)
     async def available():return [{'name':v} for v in mm.DEFAULT_PROFILES.values()]
     monkeypatch.setattr(engine,'models',available)
