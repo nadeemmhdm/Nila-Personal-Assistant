@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.4 — Connected Workspace patch
+
+- Direct @Drive and @Meet read routing, included in tested release binaries.
+
+
 ## 0.8.3 — Connected Workspace
 
 - Account mentions, bundled consent and explicit Google writes with permission checks.
