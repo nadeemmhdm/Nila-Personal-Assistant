@@ -31,3 +31,5 @@ The Windows MAX_PATH repair keeps source and virtual-environment paths short rat
 - Real Google OAuth sign-in, production PHP hosting, Google service entitlements, native Windows audio and real Ollama answer quality require deployment/hardware validation; they are not established by mocked tests.
 
 Google Chromium flow also passed: configure broker, connect, local account confirmation, preview, mobile overflow and actual encrypted document import. Google responses were simulated. Linux CI executes the PHP handoff tests against a real PHP process.
+
+Linux CI passed 119 tests, including both PHP router integration tests, and built/smoke-tested the standalone binary. PHP server tests are Linux-only; Windows validates the Nila client and updater rather than requiring PHP hosting extensions.

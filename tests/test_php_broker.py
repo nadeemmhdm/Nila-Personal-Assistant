@@ -3,6 +3,8 @@ import base64,hashlib,json,os,shutil,socket,sqlite3,subprocess,time
 from pathlib import Path
 import httpx,pytest
 
+pytestmark = pytest.mark.skipif(os.name == 'nt', reason='PHP hosting is tested on Linux; Windows runs the local Nila client suite')
+
 @pytest.fixture
 def broker(tmp_path):
     php=shutil.which('php')
