@@ -39,7 +39,9 @@ def test_birthday_context_remembers_once_per_year_and_retains_date(tmp_path,monk
     asyncio.run(ask());assert 'Today is March 2' in seen[-1]['messages'][0]['content']
     assert Store(tmp_path).settings()['birthday_announced_year']==2027
     asyncio.run(ask());assert 'Today is March 2' not in seen[-1]['messages'][0]['content']
-    assert 'March 2, 2026' in seen[-1]['messages'][0]['content']
+    assert 'March 2, 2026' not in seen[-1]['messages'][0]['content']
+    async def birthday():return ''.join([x async for x in engine.reply(store,store.create_chat()['id'],'When is your birthday?')])
+    asyncio.run(birthday());assert 'March 2, 2026' in seen[-1]['messages'][0]['content']
     monkeypatch.setattr(conversation,'local_today',lambda:date(2028,3,2));asyncio.run(ask());assert 'Today is March 2' in seen[-1]['messages'][0]['content']
 
 

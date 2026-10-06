@@ -20,7 +20,7 @@ def test_stable_questions_skip_search_and_developer_uses_identity(tmp_path,monke
     assert needs_search('What is the latest weather today?')
     assert not needs_search('What is a Python dictionary?')
 
-def test_skills_encrypted_exclusive_and_not_shared_without_personal_context(tmp_path,monkeypatch):
+def test_skills_encrypted_multiple_and_not_shared_without_personal_context(tmp_path,monkeypatch):
     seen=mock_ollama(monkeypatch);s=Store(tmp_path);s.save_settings({'auto_memory':False})
     assert len(skills.listing(s))==10
     iid=skills.save(s,'custom.md','SECRET_STYLE use a concise checklist')
@@ -30,7 +30,7 @@ def test_skills_encrypted_exclusive_and_not_shared_without_personal_context(tmp_
     asyncio.run(run());assert 'SECRET_STYLE' not in json.dumps(seen)
     with s.db() as db:assert 'SECRET_STYLE' not in db.execute('SELECT content FROM custom_skills WHERE id=?',(iid,)).fetchone()[0]
     skills.enable(s,skills.listing(s)[0]['id'],True)
-    assert sum(x['enabled'] for x in skills.listing(s))==1
+    assert sum(x['enabled'] for x in skills.listing(s))==2
 
 def test_attachments_reload_detach_and_actual_model_context(tmp_path,monkeypatch):
     seen=mock_ollama(monkeypatch);s=Store(tmp_path);s.save_settings({'auto_memory':False});c=TestClient(create_app(s));cid=s.create_chat()['id']

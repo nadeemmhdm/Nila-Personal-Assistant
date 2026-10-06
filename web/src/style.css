@@ -1515,3 +1515,19 @@ aside .temporary-button{display:flex;width:100%;margin:8px 0 18px;justify-conten
 @media(max-width:600px){.voice-panel{position:fixed;left:18px;right:18px;bottom:150px;width:auto}}
 
 .google-services{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:10px;margin:24px 0}.google-services button{display:flex;flex-direction:column;align-items:flex-start;padding:15px;gap:8px}.google-services small{font-size:11px;opacity:.65}.google-services .selected{border-color:var(--accent,#6f82ed);background:rgba(111,130,237,.12)}.google-connect details{padding:18px;border:1px solid var(--border,#8884);border-radius:14px;margin:20px 0}.google-connect section{margin:20px 0}.google-connect a{display:inline-flex;align-items:center;gap:5px}.google-connect button{margin:3px}.google-results pre{max-height:360px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;background:rgba(128,128,128,.07);border-radius:12px;font-size:12px}.google-items{display:flex;gap:8px;flex-wrap:wrap}.google-items button{max-width:100%;overflow-wrap:anywhere}.google-connect input{max-width:100%}
+
+/* Calm, consistent workspace surfaces and connected-service controls. */
+.composer{border-radius:22px;box-shadow:0 12px 36px #00000012;padding:18px 20px;transition:box-shadow .2s,border-color .2s}
+.composer:focus-within{box-shadow:0 12px 40px #5b65db20}
+.google-services{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:10px;margin:24px 0}
+.google-services button{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:16px;border-radius:15px;text-align:left}
+.google-services small{width:100%;padding-left:29px}
+.service-gmail,.service-youtube{color:#e44949}.service-docs{color:#4285f4}.service-sheets,.service-classroom,.service-meet{color:#18895a}.service-drive{color:#e4ae29}
+.connection-actions{padding:20px;border:1px solid var(--line);border-radius:18px;margin:18px 0}
+.connection-actions button{margin:5px}.connection-actions small{display:block;overflow-wrap:anywhere;margin-top:12px}
+.video-preview{margin:12px 0;max-width:640px;border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.video-preview iframe{width:100%;aspect-ratio:16/9;border:0;display:block}.video-load{width:100%;padding:22px;text-align:left}.video-load small{display:block;margin-top:8px;opacity:.65}
+.skill-grid .panel{border-radius:18px}.message-actions{gap:8px}.google-connect section{margin-bottom:20px}
+@media(prefers-reduced-motion:reduce){.composer{transition:none}}
+
+.mention-picker{display:flex;gap:8px;flex-wrap:wrap;padding:12px 0}.mention-picker button{display:flex;align-items:center;gap:9px;border-radius:12px;text-align:left;padding:10px 14px}.mention-picker small{display:block;font-size:11px;opacity:.7}

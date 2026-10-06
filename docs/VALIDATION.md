@@ -44,3 +44,8 @@ Linux CI passed 119 tests, including both PHP router integration tests, and buil
 ## 0.8.2 validation
 
 Local suite: 155 passed. New tests cover English/Manglish/Malayalam routing, ordinary-question exclusion, missing IDs, read-only limits, negative requests, direct Google data in local model context, token exclusion, disabled public search/memory extraction, same-chat source follow-up, blocked channels and YouTube metadata endpoints. Production Web build passed. Google provider responses are mocked; live OAuth account reads still require credentials and user deployment.
+
+
+## 0.8.3 validation
+
+Local Python suite: 165 tests, including explicit write endpoint validation, recipient/header injection rejection, RAW Sheets cells, default-denied write permission, bundled account confirmation/disconnect, persistent multiple skills, unauthorized Telegram uploads, file traversal/size rejection and regeneration write suppression. Production TypeScript/Vite build passed. Chromium exercised connected-service mention selection, Google context/token separation, and click-only YouTube player open/close without page errors. Provider responses were simulated. Separate PHP ZIP passed six real PHP 8.3 router tests; no live Google/Telegram account delivery was performed. InfinityFree free-host API blocking is a documented deployment limitation, not a tested successful broker deployment.

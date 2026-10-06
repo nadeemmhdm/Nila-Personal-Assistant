@@ -98,3 +98,10 @@ The model summarizes retrieved data locally. Reading a result does not create a 
 Google data and tokens never enter Gemini. Public web retrieval and automatic personal-memory extraction are disabled for these requests, even when Quick/Deep search is selected. Retrieved text cannot authorize another tool call. Private Google tools are disabled in Telegram and temporary chats; use normal local Web/CLI chats. A missing connection does not trigger public search for your private request.
 
 Only a bounded first page is read (Gmail: up to five message previews); Nila must not claim this is your entire account history. Meet reads conference history/metadata, not upcoming calendar events or live calls. Drive reads metadata only. Classroom reads courses only. These limitations follow the current API scopes.
+
+
+## Bundles, mentions and writes (0.8.3)
+
+Connect all · read only or Connect all · read & write grants the seven services in one Google consent flow. Confirm your account locally. Individual connections remain available. Type @ to choose a connected account; normal explicit read prompts also work. Writes need read/write scopes and Allow explicit chat writes. This toggle remains enabled until you disable it. See [release examples](releases/v0.8.3.md). Missing recipients, IDs or content never execute. Arbitrary edits, video audio analysis, live call joining and Classroom coursework remain unsupported.
+
+InfinityFree free hosting blocks inbound API calls, including broker health/start/claim/refresh requests. Use an API-capable PHP host. The separate ZIP includes root index.php and private configuration instructions; no host-protection bypass is included. Google/Workspace can restrict scopes and APIs even after consent.

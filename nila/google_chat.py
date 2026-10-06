@@ -3,6 +3,7 @@
 Provider text, memories and model output can never schedule a tool call.
 """
 import json
+import httpx
 import re
 from urllib.parse import urlsplit, parse_qs
 from . import google_connect as google
@@ -33,8 +34,15 @@ def previous_sources(store, history):
 
 def plan(prompt, previous=()):
     """Explicit service reads or supported URLs; ordinary product questions stay local."""
+    from .google_actions import parse
+    write=parse(prompt)
+    if write:
+        service,action,data=write
+        return [{'service':service,'write_action':action,'write_data':data}]
     lower = prompt.lower()
     words = re.sub(r'https?://\S+', '', lower)
+    mentions=re.findall(r'@([a-z]+)\b',words)
+    invalid=[x for x in mentions if x not in google.SERVICES]
     services = [key for key, pattern in ALIASES.items() if re.search(pattern, words)]
     targets = {}
     for raw in re.findall(r'https?://[^\s<>"\)]+', prompt):
@@ -56,6 +64,8 @@ def plan(prompt, previous=()):
             elif path.startswith('/shorts/'): targets['youtube'] = 'video:' + path.split('/')[2]
             elif path.startswith('/channel/'): targets['youtube'] = path.split('/')[2]
         if host == 'meet.google.com': targets['meet'] = 'meeting-link'
+    if mentions and services and not targets and not re.search(READ+'|'+WRITE,lower):
+        return [{'service':services[0],'error':'Specify what to read or write from the mentioned service.'}]
     if not targets and not (services and (re.search(OWNER,lower) or re.search(READ,lower) or re.search(WRITE,lower))):
         if len(previous)==1 and re.fullmatch(r'\s*(?:please\s+)?(?:summari[sz]e|read|explain|open)\s+(?:it|that|this)(?:\s+(?:again|in detail))?[.!?\s]*', lower):
             ref=previous[0];return [{'service':ref['service'],'item':ref.get('item',''),'cell_range':ref.get('cell_range','A1:Z100')}]
@@ -75,7 +85,7 @@ def plan(prompt, previous=()):
         if match:cell_range=match[0]
         spec={'service':service,'item':item,'cell_range':cell_range}
         if re.search(r"\b(do not|don't|dont|never|without|avoid|venda|vayikkaruth)\b|വേണ്ട|വായിക്കരുത്|ഉപയോഗിക്കരുത്",lower):spec['error']='The user requested no Google access. No account data was read.'
-        elif re.search(WRITE,lower) or re.search(r'അയക്കു|ഡിലീറ്റ്|എഡിറ്റ്|സൃഷ്ടി|ചേരുക',lower):spec['error']='Google tools are read-only. No email was sent, file edited, meeting created or call joined.'
+        elif re.search(WRITE,lower) or re.search(r'അയക്കു|ഡിലീറ്റ്|എഡിറ്റ്|സൃഷ്ടി|ചേരുക',lower):spec['error']='Ordinary requests are read-only when write details are incomplete. Provide an explicit @Service action with complete quoted or JSON details. No email was sent, file edited, meeting created or call joined.'
         elif service in {'docs','sheets'} and not item:spec['error']='Ask the user for the Google document/spreadsheet URL or ID (id: ...). Do not guess an item.'
         elif service=='meet' and item=='meeting-link':spec['error']='A Meet invite link is not a conference record ID. Ask for Meet history or a conference record ID. Nila cannot join live calls.'
         elif service=='classroom' and re.search(r'assignment|coursework|homework',lower):spec['error']='This connection supports course metadata only, not assignments or coursework.'
@@ -111,6 +121,15 @@ async def gather(store, specs, allowed=True, progress=None, stop=None):
         if not allowed:error='Google account reads are disabled on this channel. Use a normal local Web or CLI chat.'
         elif store.ephemeral:error='Connect Google in a normal saved chat. Temporary chats do not access saved Google credentials.'
         elif not error and not google.get(store,'token:'+service):error='Connect '+name+' first in Workspace → Google, or run nila google connect '+service+'.'
+        if spec.get('write_action') and not error:
+            from .google_actions import execute
+            if spec.get('write_data') is None:error='Invalid write details. Provide a complete JSON object; no action was taken.'
+            else:
+                try:
+                    result=await execute(store,service,spec['write_action'],spec['write_data'])
+                    evidence.append({'service':name,'status':'written','action':spec['write_action'],'result':result})
+                    continue
+                except (ValueError, httpx.HTTPError):error='Write failed or permission missing. Enable writes and reconnect with write permissions. Check the service before retrying; no automatic retry was made.'
         if error:evidence.append({'service':name,'status':'not_read','reason':error});continue
         if progress:progress('Reading '+name+' securely')
         try:
@@ -134,7 +153,6 @@ async def gather(store, specs, allowed=True, progress=None, stop=None):
         except (ValueError, KeyError):
             evidence.append({'service':name,'status':'not_read','reason':'Google could not read this item. Check the connection, permission and item ID in Workspace → Google. No data was retrieved for this request.'})
         except Exception as exc:
-            import httpx
             if not isinstance(exc,httpx.HTTPError):raise
             evidence.append({'service':name,'status':'not_read','reason':'Google is unavailable. Try again when online; do not invent account data.'})
     text=json.dumps(evidence,ensure_ascii=False)

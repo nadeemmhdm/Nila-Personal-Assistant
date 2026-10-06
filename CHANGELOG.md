@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.3 — Connected Workspace
+
+- Account mentions, bundled consent and explicit Google writes with permission checks.
+- Click-to-play YouTube, persistent multiple skills and Telegram attachment/sticker support.
+- Greeting birthday context fix, vision checks and workspace refinements.
+
+## 0.8.2 — Ask Your Connected Apps
+
+- Bounded connected Google reads from local chat, token isolation and canonical static.yml Pages workflow.
+
 ## 0.8.1
 
 - Domain-based OAuth endpoint setup and authenticated connection check in Web/CLI.

@@ -5,6 +5,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { Workspace, ChatWorkspace } from "./Workspace";
 import { VoiceInput, ReadAloud } from "./Voice";
+import {ConnectedMentions} from "./ConnectedMentions";
+import {VideoPreview} from "./VideoPreview";
 import { RichText } from "./RichText";
 import {
   FileText,
@@ -873,6 +875,7 @@ function App() {
                           <button className="icon" aria-label="Regenerate response" title="Regenerate response" disabled={busy} onClick={()=>{setRegenerateBox(m.id);setRegenerateText('')}}><RefreshCw size={15}/></button>
                           <button data-source-region aria-expanded={sources?.id===m.id} disabled={busy} onClick={()=>toggleSources(m.id)}><Globe size={14}/>Sources</button><ReadAloud id={String(m.id)} text={m.content} onError={setError}/>
                         </div>}
+                        <VideoPreview text={m.content}/>
                         {regenerateBox===m.id&&<div className="edit-prompt"><label>What should change? (optional)<textarea aria-label="Regeneration instructions" maxLength={2000} value={regenerateText} onChange={e=>setRegenerateText(e.target.value)} placeholder="e.g. Correct the second example, or explain in simpler words"/></label><small>Only this answer is regenerated locally, in the same place. The original conversation is saved as a branch; later turns move there. If stopped or failed, your original stays. No new web query is sent.</small><div><button disabled={busy} onClick={()=>send('Regenerate this response',null,true,m.id,regenerateText)}>Regenerate answer</button><button onClick={()=>setRegenerateBox(null)}>Cancel</button></div></div>}
                         {sources?.id===m.id&&<div className="source-explanation" data-source-region><strong>Context supplied to this answer</strong><p>This shows supplied references, not proof of the model's reasoning or factual accuracy.</p>{sources.items.length?sources.items.map((source,i)=><div key={i}><b>{source.kind}</b> · {source.label}{source.page?` · page ${source.page}`:''}{source.url&&<a href={source.url} target="_blank" rel="noreferrer">Open source</a>}</div>):<p>No recorded references for this answer.</p>}<button onClick={()=>{sourceTicket.current++;setSources(null)}}>Close references</button></div>}
                         <div className="message-actions">
@@ -986,7 +989,7 @@ function App() {
                   value={input}
                   maxLength={12000}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder={`Ask ${settings.assistant_name} anything…`}
+                  placeholder={`Ask ${settings.assistant_name}… or mention @Gmail, @Docs, @YouTube`}
                   rows={2}
                   onKeyDown={(e) => {
                     if (
@@ -999,6 +1002,7 @@ function App() {
                     }
                   }}
                 />
+                <ConnectedMentions value={input} onChange={setInput}/>
                 {attachmentNames.length>0&&<div className="attachment-chips">{attachmentNames.map(n=><span key={n.id}><FileText size={12}/>{n.name}<button type="button" aria-label={"Remove "+n.name} disabled={busy||uploading} onClick={()=>removeAttachment(n.id)}><X size={12}/></button></span>)}</div>}
                 <div className="composer-bottom">
                   <div className="composer-tools">

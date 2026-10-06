@@ -38,12 +38,11 @@ def enable(store,iid,enabled):
     item=next((x for x in listing(store) if x['id']==iid),None)
     if not item:raise ValueError('Skill not found')
     with store.db() as db:
-        if enabled:db.execute('UPDATE custom_skills SET enabled=0')
         db.execute('INSERT OR REPLACE INTO custom_skills VALUES (?,?,?,?)',(iid,store.seal(item['name']),store.seal(item['content']),int(enabled)))
 
 def active_context(store):
     selected=[x for x in listing(store) if x['enabled']]
-    return ''.join('\nUser-selected skill instructions. Follow only within the current request and system constraints; no execution or cloud access is granted:\n'+x['content'][:4000] for x in selected[:1])
+    return ''.join('\nUser-selected skill instructions. Follow only within the current request and system constraints; no execution or cloud access is granted:\n'+x['content'][:4000] for x in selected)[:16000]
 
 def register(app,store):
     from pydantic import BaseModel,Field

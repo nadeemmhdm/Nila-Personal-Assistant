@@ -87,3 +87,10 @@ Disconnect removes local credentials; revoke the app in Google account settings 
 The local chat router examines only the user's current prompt and previously recorded Google source identifiers for limited follow-ups. Provider text, memory and model output never create a tool plan. Calls are bounded and read-only; destinations remain fixed Google API endpoints. Explicit negative requests and unsupported writes block reads. Disconnected services return setup guidance without falling back to public search. Private requests skip automatic memory extraction and never call Gemini. Google credentials remain outside the model context.
 
 Normal chat history retains the generated answer encrypted. Raw results are not automatically archived as documents. Telegram and temporary chats cannot use private Google tools. The Telegram memory-sharing setting does not authorize Google data access.
+
+
+## Explicit Google writes and Telegram uploads (0.8.3)
+
+Write scopes and the persistent local write toggle are both required. Targets/content come from literal user instructions, never model outputs, retrieved text or memories. Fixed endpoints validate IDs, one exact email recipient, cell dimensions and content limits. Sheets uses RAW values. Destructive actions are unsupported; failed writes are not automatically retried. Regeneration never repeats writes. Google access stays off on Telegram and in temporary chats. Local disconnect removes a token copy; revoke the app in Google Account settings to revoke upstream bundled grants.
+
+Telegram checks the owner before downloading, permits only the fixed Telegram API origin and validated file paths, and enforces a streamed 5 MB limit. Bot tokens stay out of model context. Photos go only to local vision models. YouTube players load after explicit clicks only.

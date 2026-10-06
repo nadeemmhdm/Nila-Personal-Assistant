@@ -76,7 +76,7 @@ def configure(store, url, key):
 
 def status(store):
     config = get(store, 'config')
-    return {'configured': bool(config), 'url': config['url'] if config else '', 'callback_url': config['url'] + '?action=callback' if config else '', 'services': [
+    return {'writes_enabled':bool(get(store,'writes_enabled')), 'configured': bool(config), 'url': config['url'] if config else '', 'callback_url': config['url'] + '?action=callback' if config else '', 'services': [
         {'id': key, 'name': meta[0], 'description': meta[2], 'scope': PREFIX + meta[1],
          'connected': bool(get(store, 'token:' + key)), 'email': (get(store, 'token:' + key) or {}).get('email', '')}
         for key, meta in SERVICES.items()]}
@@ -108,7 +108,7 @@ async def check_connection(store):
 
 
 def service_name(service):
-    if service not in SERVICES:
+    if service not in SERVICES and service not in {'all','all-write'}:
         raise ValueError('Choose one of the supported Google services.')
 
 
@@ -140,7 +140,11 @@ async def poll(store, service):
         put(store, 'pending:' + service, None)
         raise ValueError('Google sign-in was denied or expired. Select Connect to retry.')
     token = result['tokens']
-    if PREFIX + SERVICES[service][1] not in token.get('scope', '').split():
+    required=[PREFIX+v[1] for v in SERVICES.values()] if service.startswith('all') else [PREFIX+SERVICES[service][1]]
+    if service=='all-write':
+        from .google_actions import WRITE_SCOPES
+        required += [PREFIX+x for x in WRITE_SCOPES.values()]
+    if not set(required).issubset(token.get('scope', '').split()):
         raise ValueError('The requested permission was not granted. Reconnect and allow this service.')
     if not token.get('access_token') or not token.get('refresh_token'):
         raise ValueError('Offline permission was not returned. Reconnect with consent.')
@@ -168,15 +172,17 @@ def confirm(store, service):
     if not value or value['expires'] < time.time():
         put(store, 'confirm:' + service, None)
         raise ValueError('Account confirmation expired. Reconnect.')
-    put(store, 'token:' + service, value['token'])
+    for key in SERVICES if service.startswith('all') else [service]:
+        put(store, 'token:' + key, value['token'])
     put(store, 'confirm:' + service, None)
     return status(store)
 
 
 def disconnect(store, service):
     service_name(service)
-    for prefix in ('token:', 'pending:', 'confirm:'):
-        put(store, prefix + service, None)
+    for key in list(SERVICES)+['all','all-write'] if service.startswith('all') else [service]:
+        for prefix in ('token:', 'pending:', 'confirm:'):
+            put(store, prefix + key, None)
     return status(store)
 
 
@@ -197,6 +203,7 @@ async def access_token(store, service, force=False):
 
 
 def endpoint(service, item='', cell_range='A1:Z100', page_token=''):
+    if service not in SERVICES:raise ValueError('Choose an individual service to read')
     service_name(service)
     item_pattern = r'(?:(?:video|playlist):)?[A-Za-z0-9_-]{1,180}' if service == 'youtube' else r'[A-Za-z0-9_-]{1,180}'
     if item and not re.fullmatch(item_pattern, item):
@@ -296,6 +303,12 @@ def register(app, store):
             import sys
             error = sys.exception()
             raise HTTPException(400, str(error) if isinstance(error, ValueError) and not isinstance(error, json.JSONDecodeError) else 'Google connection failed. Reconnect and retry.') from None
+    class WritePermission(BaseModel):
+        enabled:bool
+    @app.put('/api/google/write-permission')
+    async def write_permission(body:WritePermission):
+        put(store,'writes_enabled',body.enabled)
+        return status(store)
     @app.get('/api/google')
     async def google_status(): return status(store)
     @app.put('/api/google/config')

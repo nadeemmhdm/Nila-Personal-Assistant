@@ -42,7 +42,7 @@ def disable(store,remove=False):
     return status(store)
 
 async def call(token,method,payload):
-    if method not in {'getMe','getUpdates','sendMessage','sendChatAction','editMessageText','answerCallbackQuery','deleteMessage'}:raise TelegramError('Unsupported Telegram operation')
+    if method not in {'getMe','getUpdates','sendMessage','sendChatAction','editMessageText','answerCallbackQuery','deleteMessage','getFile','sendSticker'}:raise TelegramError('Unsupported Telegram operation')
     try:
         async with httpx.AsyncClient(timeout=30,follow_redirects=False) as c:
             r=await c.post('https://api.telegram.org/bot'+token+'/'+method,json=payload)
@@ -59,6 +59,22 @@ async def test(store):
     if not c:raise ValueError('Save the bot token first')
     me=await call(c['token'],'getMe',{})
     return {'connected':True,'username':me.get('username',''),'message':'Token accepted. Start the bot in Telegram, then enable the connection. Only your configured private chat can use it.'}
+
+
+async def download(token,attachment):
+    if attachment.get('file_size',0)>5*1024*1024:raise ValueError('Telegram attachment limit is 5 MB')
+    info=await call(token,'getFile',{'file_id':attachment['file_id']})
+    path=info.get('file_path','')
+    if not re.fullmatch(r'[A-Za-z0-9_./-]+',path) or any(x in {'.','..',''} for x in path.split('/')):raise TelegramError('Invalid Telegram file path')
+    try:
+        async with httpx.AsyncClient(timeout=30,follow_redirects=False) as client:
+            async with client.stream('GET','https://api.telegram.org/file/bot'+token+'/'+path) as response:
+                response.raise_for_status();raw=bytearray()
+                async for chunk in response.aiter_bytes():
+                    raw.extend(chunk)
+                    if len(raw)>5*1024*1024:raise ValueError('Telegram attachment limit is 5 MB')
+        return bytes(raw)
+    except httpx.HTTPError:raise TelegramError('Telegram attachment download failed') from None
 
 class Bridge:
     def __init__(self,store):self.store=store;self.owner=str(uuid.uuid4());self.active=None
@@ -92,7 +108,13 @@ class Bridge:
         msg=update.get('message',{});chat=msg.get('chat',{});sender=msg.get('from',{})
         if chat.get('type')!='private' or str(chat.get('id'))!=c['chat_id'] or str(sender.get('id'))!=c['chat_id'] or sender.get('is_bot'):return
         if time.time()-msg.get('date',0)>300:return # Do not replay stale requests after laptop sleep.
-        text=msg.get('text','').strip()
+        text=(msg.get('text') or msg.get('caption') or '').strip()
+        attachment=msg.get('document') or (msg.get('photo',[])[-1] if msg.get('photo') else None)
+        sticker=msg.get('sticker')
+        if sticker:
+            text=text or ('Reply naturally to this sticker: '+sticker.get('emoji','a sticker')+'. Do not claim to see animated content.')
+            if not sticker.get('is_animated') and not sticker.get('is_video'):attachment=sticker
+        if attachment and not text:text='Explain the attached file or image.'
         if not text or len(text)>12000:return
         if text in {'/start','/help'}:
             await self.send(c,'I’m Nila. Send a message to chat. /new starts a fresh conversation. /search off|quick|deep selects web mode. /think low|medium|high selects effort. /status shows your modes. /model fast|medium|current switches the shared local model. Keep Nila running on your laptop.');return
@@ -128,6 +150,28 @@ class Bridge:
             cid=self.store.create_chat()['id']
             with self.store.db() as db:db.execute('UPDATE telegram_state SET chat_id=? WHERE id=1',(cid,))
         if text=='/new':await self.send(c,'New conversation ready.');return
+        images=[]
+        if attachment:
+            try:
+                raw=await download(c['token'],attachment)
+                name=attachment.get('file_name') or ('sticker.webp' if sticker else 'photo.jpg')
+                if msg.get('photo') or sticker or name.lower().endswith(('.jpg','.jpeg','.png','.webp')):
+                    import base64
+                    images=[base64.b64encode(raw).decode()]
+                    if sticker:
+                        from .engine import ollama_url
+                        try:
+                            async with httpx.AsyncClient(timeout=5,trust_env=False) as client:
+                                caps=await client.post(ollama_url()+'/api/show',json={'model':self.store.settings()['model']})
+                                if 'vision' not in caps.json().get('capabilities',[]):images=[]
+                        except (httpx.HTTPError,ValueError):images=[]
+                else:
+                    from .workspace import ingest,attach
+                    iid=ingest(self.store,name,raw)
+                    with self.store.db() as db:ids=[r[0] for r in db.execute('SELECT document_id FROM chat_documents WHERE chat_id=?',(cid,))]
+                    attach(self.store,cid,(ids+[iid])[-10:])
+            except (ValueError,TelegramError,KeyError) as exc:
+                await self.send(c,str(exc));return
         self.state('Thinking')
         from .conversation import thinking_message
         started=time.monotonic();stage=thinking_message();indicator=None
@@ -157,7 +201,7 @@ class Bridge:
                 with suppress(TelegramError):await call(c['token'],'deleteMessage',{'chat_id':c['chat_id'],'message_id':indicator['message_id']})
                 indicator=None
         try:
-            async for part in reply(self.store,cid,text,learn_memory=c.get('share_memory',False),personal_context=c.get('share_memory',False),search_mode=c.get('search_mode','off'),thinking_level=c.get('thinking_level','medium'),progress=progress,allow_google=False):
+            async for part in reply(self.store,cid,text,learn_memory=c.get('share_memory',False),personal_context=c.get('share_memory',False),search_mode=c.get('search_mode','off'),thinking_level=c.get('thinking_level','medium'),progress=progress,allow_google=False,attached_images=images,attached_documents=bool(attachment and not images)):
                 if not answer:
                     await stop_animation()
                 answer+=part
@@ -172,6 +216,8 @@ class Bridge:
         if config(self.store)!=c:return
         from .terminal import plain_text
         rendered=plain_text(answer or 'No answer was generated. Try again.')
+        if sticker and config(self.store)==c:
+            with suppress(TelegramError):await call(c['token'],'sendSticker',{'chat_id':c['chat_id'],'sticker':sticker['file_id']})
         messages=self.store.chat(cid)['messages'];mid=messages[-1]['id'] if messages and messages[-1]['role']=='assistant' else 0
         for offset in range(0,len(rendered),1800):
             if config(self.store)!=c:return

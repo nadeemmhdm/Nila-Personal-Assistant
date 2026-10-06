@@ -238,3 +238,8 @@ The PHP website source is distributed separately, not in the current repository.
 With a service connected, simply ask **“Show my YouTube channel”**, **“Show my Google Meet history”**, or paste a Google Doc/Sheet URL and ask for a summary. English, common Manglish and Malayalam read requests are supported. Missing links/connections prompt for setup; requests remain read-only. YouTube video links provide metadata, not a transcript. Google account reads work in normal local Web/CLI chats and do not send content to Gemini or public search. See [examples and limits](docs/GOOGLE_CONNECT.md#ask-in-normal-chat-082).
 
 Pages deployment now uses only `.github/workflows/static.yml`; it builds and uploads `web/public/about`, not the repository root. Do not add a second stock Pages workflow that uploads `.`.
+
+
+### Connected workspace (0.8.3)
+
+Type @ in Web chat to choose a connected service with its account email. Connect all Google services in one sign-in, choosing read-only or read/write. Explicit writes also require the persistent local write toggle. See [0.8.3 examples and limitations](docs/releases/v0.8.3.md). Multiple skills stay enabled until disabled. Telegram accepts documents/photos up to 5 MB; images require a vision-capable local model.
