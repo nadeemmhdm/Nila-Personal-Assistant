@@ -74,7 +74,7 @@ Custom Markdown skills are encrypted local instructions and cannot grant executi
 
 ## Optional Google OAuth broker
 
-Google integration is opt-in and read-only. The private PHP deployment keeps the Google Client Secret server-side. OAuth state is random and bound to a secure HttpOnly browser cookie; token pickup requires a separate claim secret and private deployment key. Short-lived pending tokens are Sodium-encrypted and removed after a single claim. The user must confirm the verified account in local Nila before reads are enabled.
+Google integration is opt-in and read-only by default. Explicit writes require the read/write scopes plus persistent local write permission. The private PHP deployment keeps the Google Client Secret server-side. OAuth state is random and bound to a secure HttpOnly browser cookie; token pickup requires a separate claim secret and private deployment key. Short-lived pending tokens are Sodium-encrypted and removed after a single claim. The user must confirm the verified account in local Nila before reads are enabled.
 
 Persistent tokens are encrypted with Nila's local vault in a separate table, excluded from normal settings, model context and portable workspace backups. Gmail/Drive/Docs/Sheets/Classroom/YouTube/Meet calls use fixed Google endpoints directly from the laptop with redirects disabled. No Google token, preview or document is forwarded to Gemini. Content is only imported to local documents when the user clicks **Use this preview in a local chat**.
 
@@ -84,7 +84,7 @@ Disconnect removes local credentials; revoke the app in Google account settings 
 
 ## Prompt-driven Google reads (0.8.2)
 
-The local chat router examines only the user's current prompt and previously recorded Google source identifiers for limited follow-ups. Provider text, memory and model output never create a tool plan. Calls are bounded and read-only; destinations remain fixed Google API endpoints. Explicit negative requests and unsupported writes block reads. Disconnected services return setup guidance without falling back to public search. Private requests skip automatic memory extraction and never call Gemini. Google credentials remain outside the model context.
+The local chat router examines only the user's current prompt and previously recorded Google source identifiers for limited follow-ups. Provider text, memory and model output never create a tool plan. Reads and explicit writes are bounded; destinations remain fixed Google API endpoints. Explicit negative requests and incomplete or unsupported writes block access. Disconnected services return setup guidance without falling back to public search. Private requests skip automatic memory extraction and never call Gemini. Google credentials remain outside the model context.
 
 Normal chat history retains the generated answer encrypted. Raw results are not automatically archived as documents. Telegram and temporary chats cannot use private Google tools. The Telegram memory-sharing setting does not authorize Google data access.
 

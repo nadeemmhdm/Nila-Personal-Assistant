@@ -178,7 +178,7 @@ Nila source code is licensed under the [MIT License](LICENSE), copyright 2026 Na
 
 See [release notes](docs/releases/v0.8.0.md) for stable-release updates, Models and Skills dashboards, offline web-reference caching, Telegram modes, persistent attachments and local browser voice capabilities.
 
-Use **Workspace → Models → Load & use** to switch local models. Import a Markdown skill through **Workspace → Skills → Add skill**. At most one skill is active; it provides instructions, not executable tools. **Workspace → Knowledge** manages dated saved web references.
+Use **Workspace → Models → Load & use** to switch local models. Import a Markdown skill through **Workspace → Skills → Add skill**. Multiple skills can be active until individually disabled; they provide instructions, not executable tools. **Workspace → Knowledge** manages dated saved web references.
 
 Voice input is available only where the browser supports on-device recognition with an installed language pack; read-aloud needs an installed local voice. These controls do not send audio to Gemini.
 
@@ -218,7 +218,7 @@ The `Nila landing page` workflow builds the same static About page and saves it 
 
 ## Connect Google services through a PHP website
 
-Open **Workspace → Google** to connect Gmail, Drive, Docs, Sheets, Classroom, YouTube or Meet individually. The separately delivered PHP OAuth broker handles sign-in; Nila reads Google data directly on your laptop. Preview selected content and use it in a local chat. Gemini cannot read these connections or imported documents. The initial integration is read-only.
+Open **Workspace → Google** to connect Gmail, Drive, Docs, Sheets, Classroom, YouTube or Meet individually. The separately delivered PHP OAuth broker handles sign-in; Nila reads Google data directly on your laptop. Preview selected content and use it in a local chat. Gemini cannot read these connections or imported documents. Read-only access is the default; explicit writes require the read/write bundle and local write permission.
 
 Deploy the `public/` folder from the separate **Nila-PHP-OAuth-Website-v0.8.1.zip** to an HTTPS PHP 8.2+ host and register a Google Cloud **Web application** OAuth client. Configure the Google Client Secret on that server, then enter your domain and private pairing key in Nila; Nila adds HTTPS and the endpoint and checks the connection. Your laptop does not need a public address. GitHub Pages cannot run this PHP endpoint.
 
@@ -235,7 +235,7 @@ The PHP website source is distributed separately, not in the current repository.
 
 ### Ask connected Google services in chat
 
-With a service connected, simply ask **“Show my YouTube channel”**, **“Show my Google Meet history”**, or paste a Google Doc/Sheet URL and ask for a summary. English, common Manglish and Malayalam read requests are supported. Missing links/connections prompt for setup; requests remain read-only. YouTube video links provide metadata, not a transcript. Google account reads work in normal local Web/CLI chats and do not send content to Gemini or public search. See [examples and limits](docs/GOOGLE_CONNECT.md#ask-in-normal-chat-082).
+With a service connected, simply ask **“Show my YouTube channel”**, **“Show my Google Meet history”**, or paste a Google Doc/Sheet URL and ask for a summary. English, common Manglish and Malayalam read requests are supported. Missing links/connections prompt for setup; reads are bounded; explicit write actions require separate write permission. YouTube video links provide metadata, not a transcript. Google account reads work in normal local Web/CLI chats and do not send content to Gemini or public search. See [examples and limits](docs/GOOGLE_CONNECT.md#ask-in-normal-chat-082).
 
 Pages deployment now uses only `.github/workflows/static.yml`; it builds and uploads `web/public/about`, not the repository root. Do not add a second stock Pages workflow that uploads `.`.
 
