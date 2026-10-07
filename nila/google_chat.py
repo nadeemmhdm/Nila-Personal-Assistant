@@ -3,6 +3,7 @@
 Provider text, memories and model output can never schedule a tool call.
 """
 import json
+import time
 import httpx
 import re
 from urllib.parse import urlsplit, parse_qs
@@ -44,6 +45,7 @@ def plan(prompt, previous=()):
     mentions=re.findall(r'@([a-z]+)\b',words)
     services = [key for key, pattern in ALIASES.items() if re.search(pattern, words)]
     services=list(dict.fromkeys(services+[x for x in mentions if x in google.SERVICES]))
+    read_intent=bool(re.search(READ,lower) or (mentions and re.search(r'\b(latest|recent|unread|last)\b',lower)))
     targets = {}
     for raw in re.findall(r'https?://[^\s<>"\)]+', prompt):
         parsed = urlsplit(raw.rstrip('.,;'))
@@ -64,9 +66,9 @@ def plan(prompt, previous=()):
             elif path.startswith('/shorts/'): targets['youtube'] = 'video:' + path.split('/')[2]
             elif path.startswith('/channel/'): targets['youtube'] = path.split('/')[2]
         if host == 'meet.google.com': targets['meet'] = 'meeting-link'
-    if mentions and services and not targets and not re.search(READ+'|'+WRITE,lower):
+    if mentions and services and not targets and not (read_intent or re.search(WRITE,lower)):
         return [{'service':services[0],'error':'Specify what to read or write from the mentioned service.'}]
-    if not targets and not (services and (re.search(OWNER,lower) or re.search(READ,lower) or re.search(WRITE,lower))):
+    if not targets and not (services and (re.search(OWNER,lower) or read_intent or re.search(WRITE,lower))):
         if len(previous)==1 and re.fullmatch(r'\s*(?:please\s+)?(?:summari[sz]e|read|explain|open)\s+(?:it|that|this)(?:\s+(?:again|in detail))?[.!?\s]*', lower):
             ref=previous[0];return [{'service':ref['service'],'item':ref.get('item',''),'cell_range':ref.get('cell_range','A1:Z100')}]
         return []
@@ -84,6 +86,17 @@ def plan(prompt, previous=()):
         match=re.search(r"(?:\b[A-Za-z0-9_]+!)?\$?[A-Z]{1,3}\$?[0-9]+:\$?[A-Z]{1,3}\$?[0-9]+",prompt)
         if match:cell_range=match[0]
         spec={'service':service,'item':item,'cell_range':cell_range}
+        if service=='gmail' and not item:
+            filters=[]
+            window=re.search(r'\b(?:last|past)\s+(\d{1,4})\s*(minutes?|mins?|hours?|hrs?|days?)\b',lower)
+            if window:
+                amount=int(window[1]);unit=window[2]
+                seconds=amount*(60 if unit.startswith('min') else 3600 if unit.startswith(('h','hr')) else 86400)
+                if 0<seconds<=31*86400:filters.append('after:'+str(int(time.time())-seconds))
+                else:spec['error']='Choose a time window greater than zero and at most 31 days.'
+            if re.search(r'\bunread\b',lower):filters.append('is:unread')
+            if filters:spec['gmail_query']=' '.join(filters)
+
         if re.search(r"\b(do not|don't|dont|never|without|avoid|venda|vayikkaruth)\b|വേണ്ട|വായിക്കരുത്|ഉപയോഗിക്കരുത്",lower):spec['error']='The user requested no Google access. No account data was read.'
         elif re.search(WRITE,lower) or re.search(r'അയക്കു|ഡിലീറ്റ്|എഡിറ്റ്|സൃഷ്ടി|ചേരുക',lower):spec['error']='Ordinary requests are read-only when write details are incomplete. Provide an explicit @Service action with complete quoted or JSON details. No email was sent, file edited, meeting created or call joined.'
         elif service in {'docs','sheets'} and not item:spec['error']='Ask the user for the Google document/spreadsheet URL or ID (id: ...). Do not guess an item.'
@@ -134,7 +147,7 @@ async def gather(store, specs, allowed=True, progress=None, stop=None):
         if progress:progress('Reading '+name+' securely')
         try:
             item=spec.get('item','');cell_range=spec.get('cell_range','A1:Z100')
-            data=await google.read(store,service,item,cell_range)
+            data=await google.read(store,service,item,cell_range,**({'gmail_query':spec['gmail_query']} if spec.get('gmail_query') else {}))
             if service=='gmail' and not item:
                 # Bounded preview of the five messages returned by the inbox list, never an unrestricted mailbox crawl.
                 previews=[]

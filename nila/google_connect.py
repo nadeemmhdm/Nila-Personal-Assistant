@@ -74,10 +74,15 @@ def configure(store, url, key):
     return status(store)
 
 
+def write_scopes():
+    from .google_actions import WRITE_SCOPES
+    return WRITE_SCOPES
+
 def status(store):
     config = get(store, 'config')
     return {'writes_enabled':bool(get(store,'writes_enabled')), 'configured': bool(config), 'url': config['url'] if config else '', 'callback_url': config['url'] + '?action=callback' if config else '', 'services': [
         {'id': key, 'name': meta[0], 'description': meta[2], 'scope': PREFIX + meta[1],
+         'write_scope': PREFIX+write_scopes()[key] in (get(store,'token:'+key) or {}).get('scope','').split(),
          'connected': bool(get(store, 'token:' + key)), 'email': (get(store, 'token:' + key) or {}).get('email', '')}
         for key, meta in SERVICES.items()]}
 
@@ -90,6 +95,8 @@ async def broker(store, action, body):
         try:
             response = await client.post(config['url'], params={'action': action}, json=body,
                                          headers={'Authorization': 'Bearer ' + config['key']})
+            if 'text/html' in response.headers.get('content-type','').lower():
+                raise ValueError('Your host returned a browser-only HTML page instead of the OAuth API. InfinityFree free hosting blocks app/API calls. Use an API-capable PHP host and upload the OAuth ZIP.')
             if response.status_code != 200:
                 raise ValueError('OAuth broker rejected the request. Check the pairing key, server configuration or reconnect.')
             return response.json()
@@ -202,7 +209,7 @@ async def access_token(store, service, force=False):
     return token['access_token']
 
 
-def endpoint(service, item='', cell_range='A1:Z100', page_token=''):
+def endpoint(service, item='', cell_range='A1:Z100', page_token='', gmail_query=''):
     if service not in SERVICES:raise ValueError('Choose an individual service to read')
     service_name(service)
     item_pattern = r'(?:(?:video|playlist):)?[A-Za-z0-9_-]{1,180}' if service == 'youtube' else r'[A-Za-z0-9_-]{1,180}'
@@ -216,6 +223,9 @@ def endpoint(service, item='', cell_range='A1:Z100', page_token=''):
             params = {'format': 'full'}
         else:
             params = {'maxResults': 20, 'labelIds': 'INBOX'}
+            if gmail_query:
+                if not re.fullmatch(r'(?:after:[0-9]{1,12})(?: is:unread)?|is:unread',gmail_query):raise ValueError('Unsupported Gmail filter')
+                params['q']=gmail_query
     elif service == 'drive':
         url = 'https://www.googleapis.com/drive/v3/files' + ('/' + item if item else '')
         params = {'fields': 'id,name,mimeType,webViewLink,modifiedTime,size'} if item else {'pageSize': 20, 'q': 'trashed = false', 'fields': 'nextPageToken,files(id,name,mimeType,webViewLink,modifiedTime)', 'orderBy': 'modifiedTime desc'}
@@ -243,8 +253,8 @@ def endpoint(service, item='', cell_range='A1:Z100', page_token=''):
     return url, params
 
 
-async def read(store, service, item='', cell_range='A1:Z100', page_token=''):
-    url, params = endpoint(service, item, cell_range, page_token)
+async def read(store, service, item='', cell_range='A1:Z100', page_token='', gmail_query=''):
+    url, params = endpoint(service, item, cell_range, page_token, gmail_query)
     for attempt in range(2):
         token = await access_token(store, service, force=attempt > 0)
         async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.5 — Clearer Connections
+
+- Gmail recent/unread filters, service marks and accurate connected-account permission badges.
+- Birthday-free greeting context, broader YouTube URL support and actionable API-hosting errors.
+
+
 ## 0.8.4 — Connected Workspace patch
 
 - Direct @Drive and @Meet read routing, included in tested release binaries.

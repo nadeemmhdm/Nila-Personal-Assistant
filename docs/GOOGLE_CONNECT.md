@@ -105,3 +105,10 @@ Only a bounded first page is read (Gmail: up to five message previews); Nila mus
 Connect all · read only or Connect all · read & write grants the seven services in one Google consent flow. Confirm your account locally. Individual connections remain available. Type @ to choose a connected account; normal explicit read prompts also work. Writes need read/write scopes and Allow explicit chat writes. This toggle remains enabled until you disable it. See [release examples](releases/v0.8.3.md). Missing recipients, IDs or content never execute. Arbitrary edits, video audio analysis, live call joining and Classroom coursework remain unsupported.
 
 InfinityFree free hosting blocks inbound API calls, including broker health/start/claim/refresh requests. Use an API-capable PHP host. The separate ZIP includes root index.php and private configuration instructions; no host-protection bypass is included. Google/Workspace can restrict scopes and APIs even after consent.
+
+
+## Recent inbox reads (0.8.5)
+
+`@Gmail read emails from the last 10 minutes`, `@Gmail last 2 hours` and `@Gmail unread emails` apply Gmail filters before fetching up to five previews. Windows must be greater than zero and no more than 31 days. Reads are limited to inbox messages; previews are not a complete mailbox scan. The service must already be connected. Gmail API filtering uses epoch seconds for precise time windows: https://developers.google.com/workspace/gmail/api/guides/filtering
+
+If the broker returns a browser-only HTML page, Nila now explains that the host is not providing the required API. InfinityFree's free-host limitation is documented at https://forum.infinityfree.com/t/why-isnt-api-access-working-on-my-website/115198/1 .
