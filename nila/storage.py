@@ -171,6 +171,17 @@ class Store:
             if row and row[0]>time.time(): raise RuntimeError('NILA-003: Another request is running. Stop it or wait for completion.')
             db.execute('INSERT OR REPLACE INTO lease VALUES (1,?,?)',(token,time.time()+720))
         return token
+    async def acquire_async(self,stop=None,progress=None):
+        import asyncio
+        notified=False
+        while True:
+            if stop and stop.is_set():raise asyncio.CancelledError()
+            try:return self.acquire()
+            except RuntimeError as exc:
+                if 'NILA-003' not in str(exc):raise
+                if progress and not notified:progress('Queued · waiting for local inference');notified=True
+                await asyncio.sleep(.25)
+
     def release(self,token):
         with self.db() as db: db.execute('DELETE FROM lease WHERE token=?',(token,))
 

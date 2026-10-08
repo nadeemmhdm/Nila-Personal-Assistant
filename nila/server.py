@@ -103,7 +103,7 @@ def create_app(store=None):
         start_auto_update(store)
         try: yield
         finally:
-            pending=list(running.values())+list(app.state.followups.values())+list(getattr(app.state,'voice_tasks',{}).values())
+            pending=list(getattr(app.state,'component_tasks',set()))+list(running.values())+list(app.state.followups.values())+list(getattr(app.state,'voice_tasks',{}).values())
             for task in pending:task.cancel()
             await asyncio.gather(*pending,return_exceptions=True)
             await lab.close()
@@ -123,6 +123,8 @@ def create_app(store=None):
     model_routes(app,store)
     from .google_connect import register as google_routes
     google_routes(app,store)
+    from .runtime_api import register as runtime_routes
+    runtime_routes(app,store)
     register(app,store,None)
     from .learning_api import register as register_learning
     lab=register_learning(app,store)
@@ -146,7 +148,7 @@ def create_app(store=None):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["Content-Security-Policy"] = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src https://www.youtube-nocookie.com; frame-ancestors 'none'; base-uri 'self'"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; media-src 'self' blob:; frame-src https://www.youtube-nocookie.com; frame-ancestors 'none'; base-uri 'self'"
         return response
 
     @app.exception_handler(KeyError)

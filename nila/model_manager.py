@@ -1,3 +1,4 @@
+from .inference import client as local_client
 """One persistent model selection for Web, CLI, Telegram and local generation."""
 import re
 DEFAULT_PROFILES={'fast':'qwen3:0.6b','medium':'qwen3:1.7b','current':'qwen3:4b'}
@@ -25,12 +26,18 @@ def selection(store):
 async def select(store,value,warm=True,install_missing=True,progress=None):
     from .engine import models,ollama_url,NilaError
     import httpx
+    from . import local_runtime
+    if local_runtime.config().get('engine')=='llama.cpp':
+        profile={'current':'smart'}.get(value,value)
+        if profile not in local_runtime.CATALOG:raise ValueError('Choose fast, medium, smart or vision for llama.cpp')
+        await local_runtime.choose(store,'llama.cpp',profile,progress)
+        return selection(store)
     settings=store.settings();value=value.lower() if value.lower() in {'fast','medium','current','smart'} else value
     if value=='smart':value='current'
     name=settings['model_profiles'].get(value,value)
     name=canonical(name)
     if not re.fullmatch(r'[a-zA-Z0-9_.:/-]{1,120}',name):raise ValueError('Invalid Ollama model name')
-    token=store.acquire()
+    token=await store.acquire_async(progress=progress)
     try:
         if progress:progress('Checking installed models')
         if name not in [m['name'] for m in await models()]:
@@ -46,7 +53,7 @@ async def select(store,value,warm=True,install_missing=True,progress=None):
             if name not in [m['name'] for m in await models()]:raise NilaError('NILA-002: Download ended but model is unavailable. Retry to resume.')
         if progress:progress('Loading '+name)
         if warm:
-            async with httpx.AsyncClient(timeout=180,trust_env=False) as c:
+            async with local_client(timeout=180,trust_env=False) as c:
                 r=await c.post(ollama_url()+'/api/generate',json={'model':name,'prompt':'','stream':False,'keep_alive':'5m'});r.raise_for_status()
                 if r.json().get('error'):raise NilaError('Ollama could not load this model. Check available RAM.')
         store.save_settings({'model':name}|({'model_mode':value} if value in settings['model_profiles'] else {}));return selection(store)

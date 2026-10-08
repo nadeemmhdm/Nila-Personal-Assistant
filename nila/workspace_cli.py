@@ -3,7 +3,10 @@ import asyncio,getpass,json,os
 from pathlib import Path
 
 def add_parsers(sub):
-    p=sub.add_parser('google',help='Connect read-only Google services through your PHP broker')
+    p=sub.add_parser('engine',help='Choose a local inference backend');p.add_argument('backend',choices=['status','ollama','llama.cpp'],nargs='?',default='status');p.add_argument('--profile',choices=['fast','medium','smart','vision'],default='fast')
+    p=sub.add_parser('components',help='Install optional local speech or vision models');p.add_argument('component',choices=['status','speech','vision'],nargs='?',default='status')
+    p=sub.add_parser('transcribe',help='Transcribe a local audio file offline');p.add_argument('file')
+    p=sub.add_parser('google' ,help='Connect read-only Google services through your PHP broker')
     p.add_argument('action',choices=['setup','status','check','connect','read','disconnect'],nargs='?',default='status')
     p.add_argument('service',nargs='?',choices=['gmail','drive','docs','sheets','classroom','youtube','meet'])
     p.add_argument('--domain',default='');p.add_argument('--item',default='');p.add_argument('--range',dest='cell_range',default='A1:Z100')
@@ -28,13 +31,26 @@ def add_parsers(sub):
     p=sub.add_parser('feedback-list',help='Inspect, clear or reset local feedback');p.add_argument('--clear',type=int);p.add_argument('--reset',action='store_true')
 
 
-COMMANDS={'google','speak','listen','skills','telegram','setup','brief','mini','rollback','regenerate','branch','sources','backup','restore','inbox','projects','documents','feedback-list'}
+COMMANDS={'engine','components','transcribe','google','speak','listen','skills','telegram','setup','brief','mini','rollback','regenerate','branch','sources','backup','restore','inbox','projects','documents','feedback-list'}
 
 def execute(args,store):
     from . import workspace as ws
     def show(value):print(json.dumps(value,ensure_ascii=False,indent=2))
     c=args.command
-    if c=='google':
+    if c=='engine':
+        from . import local_runtime as runtime
+        show(runtime.status() if args.backend=='status' else asyncio.run(runtime.choose(store,args.backend,args.profile,print)))
+    elif c=='components':
+        from . import speech_pack,local_runtime
+        from .model_manager import select
+        if args.component=='status':show({'runtime':local_runtime.status(),'speech':speech_pack.status()})
+        elif args.component=='speech':show(asyncio.run(speech_pack.install(print)))
+        elif local_runtime.config().get('engine')=='llama.cpp':show(asyncio.run(local_runtime.choose(store,'llama.cpp','vision',print)))
+        else:show(asyncio.run(select(store,'moondream',progress=print)))
+    elif c=='transcribe':
+        from .speech_pack import worker
+        show(asyncio.run(worker({'action':'transcribe','file':str(Path(args.file).resolve())})))
+    elif c=='google':
         from . import google_connect as google
         if args.action=='setup':
             url=args.domain or input('Your OAuth website domain (example: connect.example.com): ').strip()

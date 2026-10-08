@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0 — Local Engine Choice
+
+- Optional managed llama.cpp CPU backend and verified GGUF downloads.
+- Queued chat/Learning Lab inference with responsive navigation.
+- Optional offline Whisper/Piper pack, microphone capture and playback controls.
+- Vision-model setup and free PHP-hosting guidance.
+
+
 ## 0.8.5 — Clearer Connections
 
 - Gmail recent/unread filters, service marks and accurate connected-account permission badges.

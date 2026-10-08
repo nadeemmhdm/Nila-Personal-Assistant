@@ -276,7 +276,7 @@ function App() {
     }
   }, [page]);
   function navigate(p: Page) {
-    if (busy || uploading) return;
+    if (uploading) return;
     selection.current++;
     setPage(p);setNotice('');
     if(p==="settings")api<Settings>("/settings").then(s=>{setSettings(s);setDraft(s)}).catch(fail);
@@ -285,10 +285,10 @@ function App() {
     setFollowupQuestions([]);
   }
   function newChat() {
-    if (busy || uploading) return;
+    if (uploading) return;
     selection.current++;
     setPage("chat");
-    if(chat?.temporary)void api("/chats/"+chat.id,"DELETE").catch(fail);
+    if(chat?.temporary&&!busy)void api("/chats/"+chat.id,"DELETE").catch(fail);
     setChat(null);
     setFollowupQuestions([]);setAttachmentNames([]);setRegenerateBox(null);setSources(null);
     setEditing(null);
@@ -306,10 +306,10 @@ function App() {
     catch(e){fail(e)}
   }
   async function openChat(id: string) {
-    if (busy || uploading) return;
+    if (uploading) return;
     const ticket = ++selection.current;
     try {
-      if(chat?.temporary&&chat.id!==id)await api("/chats/"+chat.id,"DELETE");
+      if(chat?.temporary&&!busy&&chat.id!==id)await api("/chats/"+chat.id,"DELETE");
       const value = await api<Chat>("/chats/" + id);
       if (ticket === selection.current) {
         setChat(value);
@@ -329,7 +329,7 @@ function App() {
     if(!text.trim()&&attachmentNames.length)text="Summarize the attached files: "+attachmentNames.map(x=>x.name).join(", ");
     if(!text.trim())return;
 
-    selection.current++;
+    const sendTicket=++selection.current;
     sendLock.current = true;
     setFollowupQuestions([]);
     setThinkingLabel(["Thinking","Working on it","Let me think","Preparing your answer","Checking the request"][Math.floor(Math.random()*5)]);sourceTicket.current++;setStarted(Date.now());setElapsed(0);setProgress('Checking local model');setRegenerating(regenerateId);setRegenerateBox(null);setSources(null);
@@ -342,7 +342,7 @@ function App() {
     try {
       if (!active) active = await api<Chat>("/chats", "POST");
       requestChat.current = active.id;
-      if(!regenerateId)setChat({
+      if(!regenerateId&&selection.current===sendTicket)setChat({
         ...active,
         messages: [
           ...(editMessageId
@@ -404,7 +404,7 @@ function App() {
       if (active) {
         try {
           const saved = await api<Chat>("/chats/" + active.id);
-          setChat(saved);
+          setChat(current=>current?.id===saved.id?saved:current);
 
           await refreshChats();
         } catch (e) {
@@ -416,7 +416,7 @@ function App() {
       setReplyText("");
       setBusy(false);
       setRegenerating(null);
-      if(active){const id=active.id,ticket=selection.current;api<string[]>(`/chats/${id}/followups`,'POST').then(q=>{if(requestChat.current===null&&ticket===selection.current)setFollowupQuestions(q)}).catch(()=>{});}
+      if(active&&selection.current===sendTicket){const id=active.id,ticket=sendTicket;api<string[]>(`/chats/${id}/followups`,'POST').then(q=>{if(requestChat.current===null&&ticket===selection.current)setFollowupQuestions(q)}).catch(()=>{});}
     }
   }
   async function attachFile(file:File){
@@ -589,7 +589,7 @@ function App() {
           </button>
         </div>
         <div className="brand-caption">YOUR PERSONAL ASSISTANT</div>
-        <button className="new-chat" onClick={newChat} disabled={busy}>
+        <button className="new-chat" onClick={newChat}>
           <Plus size={18} />
           New conversation<span>↗</span>
         </button>
@@ -599,7 +599,6 @@ function App() {
           {nav.map((n) => (
             <button
               key={n.id}
-              disabled={busy}
               className={page === n.id ? "selected" : ""}
               onClick={() => navigate(n.id)}
             >
@@ -629,7 +628,7 @@ function App() {
                 className={`history-row ${chat?.id === c.id ? "active" : ""}`}
                 key={c.id}
               >
-                <button disabled={busy} onClick={() => openChat(c.id)}>
+                <button onClick={() => openChat(c.id)}>
                   <MessageSquare size={14} />
                   <span>{c.title}</span>
                 </button>
@@ -658,7 +657,6 @@ function App() {
             className={
               page === "settings" ? "settings-link selected" : "settings-link"
             }
-            disabled={busy}
             onClick={() => navigate("settings")}
           >
             <Settings2 size={18} />
@@ -943,7 +941,7 @@ function App() {
                       </div>
                     </article>
                   ))}
-                  {busy && !regenerating && (
+                  {busy && !regenerating && requestChat.current===chat?.id && (
                     <article className="message assistant">
                       <div className="message-avatar">
                         <img className="nila-logo" src="/nila-logo.png" alt=""/>
@@ -975,6 +973,7 @@ function App() {
                 </section>
               )}
             </div>
+            {busy&&<div className="section-notice" role="status">{progress} · You can browse other sections while this runs. <button onClick={stop}>Stop active response</button></div>}
             <div className="composer-area">
               <form
                 className="composer"

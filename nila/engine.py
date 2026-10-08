@@ -1,3 +1,4 @@
+from .inference import client as local_client
 import asyncio
 import json
 import os
@@ -16,7 +17,7 @@ def ollama_url():
 
 async def models():
     try:
-        async with httpx.AsyncClient(timeout=5, trust_env=False) as client:
+        async with local_client(timeout=5, trust_env=False) as client:
             r = await client.get(ollama_url()+"/api/tags")
             r.raise_for_status()
             return r.json().get("models", [])
@@ -88,7 +89,7 @@ def context(store, cid, settings, history=None, sources=None):
     return [{"role":"system","content":system}, *recent]
 
 async def reply(store, cid, prompt, stop=None, learn_memory=True, search_mode="off", search_query=None, regenerate_id=None, instruction="", edit_message_id=None, preserve_branch=True, progress=None, personal_context=True, thinking_level=None, allow_google=True, attached_images=None, attached_documents=False):
-    token = store.acquire()
+    token = await store.acquire_async(stop,progress)
     answer = ""
     status = "interrupted"
     wrote = False
@@ -167,7 +168,7 @@ async def reply(store, cid, prompt, stop=None, learn_memory=True, search_mode="o
             attachment_text,attachment_sources=references(store,cid,prompt)
             messages[0]['content']+=attachment_text;sources.extend(attachment_sources)
         if attached_images:
-            async with httpx.AsyncClient(timeout=10,trust_env=False) as client:
+            async with local_client(timeout=10,trust_env=False) as client:
                 capability=await client.post(ollama_url()+'/api/show',json={'model':settings['model']})
                 capability.raise_for_status()
                 if 'vision' not in capability.json().get('capabilities',[]):raise NilaError('This local model cannot analyze images. Select a vision-capable Ollama model, then send the image again.')
@@ -187,7 +188,7 @@ async def reply(store, cid, prompt, stop=None, learn_memory=True, search_mode="o
         _,output_budget,context_min=effort(settings.get('thinking_level','medium'))
         think=await thinking_options(settings['model'],settings.get('thinking_level','medium'))
         async with asyncio.timeout(600):
-            async with httpx.AsyncClient(timeout=httpx.Timeout(120,connect=5), trust_env=False) as client:
+            async with local_client(timeout=httpx.Timeout(120,connect=5), trust_env=False) as client:
                 async with client.stream("POST",ollama_url()+"/api/chat",json={"model":settings["model"],**think,"messages":messages,"stream":True,"keep_alive":"5m","options":{"temperature":settings["temperature"],"num_ctx":max(settings["num_ctx"],4096 if google_specs or evidence or regenerate_id is not None or any(x["kind"]=="document" for x in sources) else context_min),"num_predict":output_budget}}) as r:
                     if r.status_code != 200:
                         raise NilaError("NILA-004: Ollama could not generate a reply. Check model availability and available RAM.")

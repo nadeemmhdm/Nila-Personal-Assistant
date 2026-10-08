@@ -112,3 +112,15 @@ InfinityFree free hosting blocks inbound API calls, including broker health/star
 `@Gmail read emails from the last 10 minutes`, `@Gmail last 2 hours` and `@Gmail unread emails` apply Gmail filters before fetching up to five previews. Windows must be greater than zero and no more than 31 days. Reads are limited to inbox messages; previews are not a complete mailbox scan. The service must already be connected. Gmail API filtering uses epoch seconds for precise time windows: https://developers.google.com/workspace/gmail/api/guides/filtering
 
 If the broker returns a browser-only HTML page, Nila now explains that the host is not providing the required API. InfinityFree's free-host limitation is documented at https://forum.infinityfree.com/t/why-isnt-api-access-working-on-my-website/115198/1 .
+
+## Free hosting alternative
+
+For personal use, [alwaysdata Free](https://www.alwaysdata.com/en/offers/) currently lists 1 GB disk and 256 MB RAM with an alwaysdata.net site address. It supports PHP sites; this is a candidate for the small OAuth broker, not for hosting local AI models. Verify the broker's required PHP extensions and external HTTPS access before migrating. A live broker deployment on this plan has not been tested here.
+
+1. Create a free account and a PHP site in its Web administration section.
+2. Upload the separately supplied PHP ZIP through SFTP and follow its included setup guide, including private configuration and storage permissions. Keep secrets outside the publicly served directory.
+3. Enable HTTPS, register that site's exact callback URL in Google Cloud, and set the broker's public URL to match.
+4. In Nila, open Google connections and enter this domain and the private pairing key; run the connection check before OAuth login.
+5. Use the connected account test to confirm both browser authorization and Nila's programmatic API access work. Do not assume a browser-visible homepage proves API compatibility.
+
+The PHP source remains distributed separately and is not included in this GitHub repository. InfinityFree's free browser-only protection is incompatible with this broker's app/API calls; disabling Nila security is not a workaround.

@@ -243,3 +243,7 @@ Pages deployment now uses only `.github/workflows/static.yml`; it builds and upl
 ### Connected workspace (0.8.3)
 
 Type @ in Web chat to choose a connected service with its account email. Connect all Google services in one sign-in, choosing read-only or read/write. Explicit writes also require the persistent local write toggle. See [0.8.3 examples and limitations](docs/releases/v0.8.3.md). Multiple skills stay enabled until disabled. Telegram accepts documents/photos up to 5 MB; images require a vision-capable local model.
+
+## Optional local engines and speech
+
+Version 0.9.0 adds an experimental managed llama.cpp backend alongside Ollama, queued local generation and an optional Whisper/Piper speech pack. Open **Workspace → Engine & downloads**. See [Local engines and downloads](docs/LOCAL_ENGINES.md) for commands, supported platforms and limits.

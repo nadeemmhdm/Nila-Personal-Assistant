@@ -120,7 +120,8 @@ async def gemini_question(store,config):
 
 async def local_answer(config,question,on_token):
     answer='';completed=False
-    async with httpx.AsyncClient(timeout=httpx.Timeout(120,connect=5),trust_env=False) as client:
+    from .inference import client as local_client
+    async with local_client(timeout=httpx.Timeout(120,connect=5),trust_env=False) as client:
         async with client.stream('POST',ollama_url()+'/api/chat',json={'model':config.local_model,'stream':True,'messages':[{'role':'system','content':'You are a local study partner. Explain clearly, acknowledge uncertainty, and revise errors when given reviewer feedback. No access to user profile or personal memory is provided in this session.'},{'role':'user','content':question}],'options':{'temperature':.4,'num_ctx':4096,'num_predict':1000}}) as r:
             if r.status_code>=400:raise LearningError('Ollama could not run this model. Select an installed text-chat model that fits your hardware.')
             async for line in r.aiter_lines():
@@ -188,7 +189,7 @@ class LearningLab:
                     if token:db.execute('UPDATE lease SET expires=? WHERE token=?',(time.time()+40,token))
                 await asyncio.sleep(.5)
         try:
-            token=store.acquire();monitor=asyncio.create_task(watch())
+            monitor=asyncio.create_task(watch())
             question=''
             remaining=max(.01,session(store,iid)['deadline']-time.time())
             async with asyncio.timeout(remaining):
@@ -202,7 +203,10 @@ class LearningLab:
                         if time.monotonic()-last_write>.25:
                             with store.db() as db:db.execute('UPDATE learning_messages SET content=? WHERE id=?',(store.seal(value),mid))
                             last_write=time.monotonic()
-                    answer=await local_answer(config,question,partial)
+                    message(store,iid,'system','Waiting for local inference slot…',round)
+                    token=await store.acquire_async()
+                    try:answer=await local_answer(config,question,partial)
+                    finally:store.release(token);token=None
                     with store.db() as db:db.execute('UPDATE learning_messages SET content=? WHERE id=?',(store.seal(answer),mid))
                     message(store,iid,'system','Local answer complete. Waiting for Gemini review…',round)
                     review=await gemini_review(store,config,question,answer)

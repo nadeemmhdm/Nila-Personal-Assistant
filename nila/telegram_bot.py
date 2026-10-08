@@ -161,7 +161,8 @@ class Bridge:
                     if sticker:
                         from .engine import ollama_url
                         try:
-                            async with httpx.AsyncClient(timeout=5,trust_env=False) as client:
+                            from .inference import client as local_client
+                            async with local_client(timeout=5,trust_env=False) as client:
                                 caps=await client.post(ollama_url()+'/api/show',json={'model':self.store.settings()['model']})
                                 if 'vision' not in caps.json().get('capabilities',[]):images=[]
                         except (httpx.HTTPError,ValueError):images=[]
