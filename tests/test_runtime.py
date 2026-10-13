@@ -75,3 +75,32 @@ def test_background_setup_and_audio_cleanup(tmp_path,monkeypatch):
         r=client.post('/api/runtime/speak',json={'text':'Hello'});assert r.content==b'RIFF-test'
         assert 'blob:' in r.headers['content-security-policy']
     assert all(not p.exists() for p in seen)
+
+@pytest.mark.parametrize('failure',[ValueError('load failed'),asyncio.CancelledError()])
+def test_failed_start_reaps_new_process(monkeypatch,failure):
+    class Process:
+        terminated=False
+        def poll(self):return None
+        def terminate(self):self.terminated=True
+        def wait(self,timeout):return 0
+    child=Process()
+    monkeypatch.setattr(runtime,'_PROCESS',None)
+    async def fail(c):runtime._PROCESS=child;raise failure
+    monkeypatch.setattr(runtime,'_ensure',fail)
+    async def run():
+        with pytest.raises(type(failure)):await runtime.ensure({})
+    asyncio.run(run());assert child.terminated;assert runtime._PROCESS is None
+
+def test_failed_probe_does_not_kill_existing_process(monkeypatch):
+    child=object();monkeypatch.setattr(runtime,'_PROCESS',child)
+    async def fail(c):raise ValueError('probe failed')
+    monkeypatch.setattr(runtime,'_ensure',fail)
+    with pytest.raises(ValueError):asyncio.run(runtime.ensure({}))
+    assert runtime._PROCESS is child
+
+def test_ollama_selection_does_not_revert_to_stale_saved_model(tmp_path,monkeypatch):
+    monkeypatch.setenv('NILA_DATA_DIR',str(tmp_path));monkeypatch.setattr(runtime,'stop_owned',lambda c:None);monkeypatch.setattr(runtime,'_PROCESS',None)
+    store=Store(tmp_path);store.save_settings({'model':'qwen3:1.7b'})
+    runtime.save({'engine':'ollama','ollama_model':'llama3.2:1b'})
+    asyncio.run(runtime.choose(store,'ollama'))
+    assert store.settings()['model']=='qwen3:1.7b'

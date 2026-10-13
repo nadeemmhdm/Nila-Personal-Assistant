@@ -28,7 +28,7 @@ async def install(progress=None):
     chosen=None
     for cmd in candidates:
         try:await process(cmd+['-c','import sys; assert sys.version_info >= (3,10)'],timeout=20);chosen=cmd;break
-        except (ValueError,OSError):pass
+        except (ValueError,OSError,asyncio.TimeoutError):pass
     if not chosen and os.name=='nt' and shutil.which('winget'):
         if progress:progress('Installing Python 3.12 for optional speech tools')
         await process(['winget','install','--id','Python.Python.3.12','-e','--scope','user','--silent','--accept-package-agreements','--accept-source-agreements'])

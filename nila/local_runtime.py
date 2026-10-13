@@ -8,7 +8,7 @@ from platformdirs import user_data_dir
 CATALOG={'fast':('ggml-org/Qwen3-0.6B-GGUF','Qwen3-0.6B-Q4_0.gguf','qwen3:0.6b'),'medium':('Qwen/Qwen3-1.7B-GGUF','Qwen3-1.7B-Q8_0.gguf','qwen3:1.7b'),'smart':('Qwen/Qwen3-4B-GGUF','Qwen3-4B-Q8_0.gguf','qwen3:4b')}
 CATALOG['vision']=('ggml-org/SmolVLM-500M-Instruct-GGUF','SmolVLM-500M-Instruct-Q8_0.gguf','smolvlm:500m')
 _PROCESS=None
-_LOCK=None
+
 
 def root():return Path(os.environ.get('NILA_DATA_DIR') or user_data_dir('Nila',appauthor=False))/'runtime'
 def config():
@@ -90,8 +90,29 @@ async def install(profile='fast',progress=None):
             await download('https://huggingface.co/'+repo+'/resolve/main/'+filename,projector,meta['lfs']['oid'],progress)
     return {'mmproj':str(projector) if projector else '', 'engine':'llama.cpp','profile':profile,'binary':str(binary),'gguf':str(model),'model':name,'key':secrets.token_urlsafe(32)}
 
+async def stop_process(process):
+    """Reap a process started by Nila without blocking the UI event loop."""
+    if process is None:return
+    if process.poll() is None:
+        process.terminate()
+        try:await asyncio.to_thread(process.wait,timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            await asyncio.to_thread(process.wait,timeout=5)
+
 async def ensure(c=None):
-    global _PROCESS,_LOCK
+    global _PROCESS
+    previous_process=_PROCESS
+    try:await _ensure(c)
+    except BaseException:
+        failed=_PROCESS
+        if failed is not previous_process:
+            _PROCESS=None
+            await stop_process(failed)
+        raise
+
+async def _ensure(c=None):
+    global _PROCESS
     c=c or config()
     if c.get('engine')!='llama.cpp':return
     async with httpx.AsyncClient(timeout=2,trust_env=False) as client:
@@ -133,18 +154,18 @@ async def choose(store,engine,profile='fast',progress=None):
         if report:report(message)
     try:
         previous=config()
-        ollama_model=previous.get('ollama_model') or (store.settings()['model'] if previous.get('engine')=='ollama' else 'qwen3:0.6b')
+        ollama_model=store.settings()['model'] if previous.get('engine')=='ollama' else previous.get('ollama_model','qwen3:0.6b')
         if engine=='ollama':
-            stop_owned(previous)
+            await asyncio.to_thread(stop_owned,previous)
             save({'engine':'ollama','ollama_model':ollama_model,**({'cached':previous} if previous.get('engine')=='llama.cpp' else {})})
             store.save_settings({'model':ollama_model})
-            if _PROCESS and _PROCESS.poll() is None:_PROCESS.terminate()
+            await stop_process(_PROCESS)
             _PROCESS=None
         else:
             old=config();cached=old.get('cached',old)
-            c=cached if cached.get('profile')==profile and cached.get('binary') and Path(cached['binary']).is_file() and Path(cached.get('gguf','')).is_file() else await install(profile,progress)
-            stop_owned(previous)
-            if _PROCESS and _PROCESS.poll() is None:_PROCESS.terminate();_PROCESS.wait(timeout=10)
+            c=cached if cached.get('profile')==profile and cached.get('binary') and Path(cached['binary']).is_file() and Path(cached.get('gguf','')).is_file() and (profile!='vision' or Path(cached.get('mmproj','')).is_file()) else await install(profile,progress)
+            await asyncio.to_thread(stop_owned,previous)
+            await stop_process(_PROCESS)
             _PROCESS=None
             if progress:progress('Loading local GGUF model')
             c=dict(c);c['ollama_model']=ollama_model

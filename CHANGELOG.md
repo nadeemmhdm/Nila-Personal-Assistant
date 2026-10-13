@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.1 — Runtime Recovery
+
+- Reap newly started llama.cpp processes on failed or cancelled startup.
+- Move runtime shutdown waits off the UI event loop.
+- Preserve the latest Ollama selection and reinstall missing vision projectors.
+- Continue speech Python discovery when a candidate times out.
+
+
 ## 0.9.0 — Local Engine Choice
 
 - Optional managed llama.cpp CPU backend and verified GGUF downloads.
